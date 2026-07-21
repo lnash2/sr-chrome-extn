@@ -2,7 +2,7 @@ export interface LookupRequest {
   phone: string | null;
   email: string | null;
   name: string | null;
-  postcode: string | null;
+  location: string | null;
 }
 
 export interface LicenceCategory {
@@ -12,7 +12,7 @@ export interface LicenceCategory {
 
 export interface CandidateMatch {
   candidate_id: number;
-  confidence: 'exact_phone' | 'exact_email' | 'fuzzy_name_postcode';
+  confidence: 'exact_phone' | 'exact_email' | 'fuzzy_name_postcode' | 'name_location';
   name: string;
   active_status: 'active' | 'inactive';
   recruiter_name: string | null;

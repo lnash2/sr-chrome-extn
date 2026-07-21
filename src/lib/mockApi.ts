@@ -70,7 +70,7 @@ const FIXTURES: Record<string, MatchResponse> = {
       },
       {
         candidate_id: 30298,
-        confidence: 'fuzzy_name_postcode',
+        confidence: 'name_location',
         name: 'Dave Smith',
         active_status: 'active',
         recruiter_name: 'Sarah Connor',
@@ -140,18 +140,16 @@ const FIXTURES: Record<string, MatchResponse> = {
 };
 
 function pickFixture(req: LookupRequest): MatchResponse {
-  // Deterministic fixture selection based on input so developers can test each state
   if (req.phone?.includes('900222')) return FIXTURES.deletion_flagged;
   if (req.phone?.includes('900111')) return FIXTURES.unsuitable;
   if (req.email?.includes('notfound')) return FIXTURES.no_match;
-  if (req.name && req.postcode && !req.phone && !req.email) return FIXTURES.multiple;
+  if (req.name && req.location && !req.phone && !req.email) return FIXTURES.multiple;
   if (req.email) return FIXTURES.single_email;
   if (req.phone) return FIXTURES.single_phone;
   return FIXTURES.no_match;
 }
 
 export async function mockCandidateMatch(req: LookupRequest): Promise<MatchResponse> {
-  // Simulate network latency
   await new Promise((resolve) => setTimeout(resolve, 120 + Math.random() * 180));
   return pickFixture(req);
 }

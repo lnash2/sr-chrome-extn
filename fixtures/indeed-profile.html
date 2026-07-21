@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Indeed Employer — Candidate Review (fixture)</title>
+</head>
+<body>
+  <!--
+    Fixture page mirroring the real employers.indeed.com candidate review DOM.
+    Used by Vitest scraper tests (headless, jsdom).
+  -->
+
+  <div data-testid="candidate-review-page">
+
+    <!-- ===== Sidebar: other candidates in the list (OUTSIDE the profile container) ===== -->
+    <aside class="candidate-list-sidebar" aria-label="Candidate list">
+      <ul>
+        <li class="candidate-list-item">
+          <span class="candidate-name">Sarah Williams</span>
+          <span class="candidate-location">Manchester</span>
+        </li>
+        <li class="candidate-list-item selected" aria-selected="true">
+          <span class="candidate-name">James Whitfield</span>
+          <span class="candidate-location">Saffron Walden</span>
+        </li>
+        <li class="candidate-list-item">
+          <span class="candidate-name">Michael Brown</span>
+          <span class="candidate-location">Leeds</span>
+        </li>
+        <li class="candidate-list-item">
+          <span class="candidate-name">Priya Patel</span>
+          <span class="candidate-location">Birmingham</span>
+        </li>
+      </ul>
+    </aside>
+
+    <!-- ===== Main profile container (scraper scopes to this) ===== -->
+    <div id="candidateProfileContainer">
+
+      <!-- Name plate -->
+      <div data-testid="name-plate-name-item">
+        <h3>James Whitfield</h3>
+      </div>
+
+      <!-- Location line (town, not postcode) -->
+      <div data-testid="namePlateBottomLine">
+        Saffron Walden
+      </div>
+
+      <!-- Status badges -->
+      <div data-testid="candidateStatusBadges">
+        <span class="badge">Applied 3 days ago</span>
+        <span class="badge">HGV Driver</span>
+      </div>
+
+      <!-- Application tab content — may contain contact details in answers -->
+      <div class="application-tab" data-testid="applicationTabContent">
+        <div class="question-group">
+          <div class="question">
+            <p class="question-text">What is your email address?</p>
+            <p class="answer-text">james.whitfield@email.com</p>
+          </div>
+          <div class="question">
+            <p class="question-text">What is your contact number?</p>
+            <p class="answer-text">07712 345678</p>
+          </div>
+          <div class="question">
+            <p class="question-text">Do you hold a valid C+E licence?</p>
+            <p class="answer-text">Yes</p>
+          </div>
+          <div class="question">
+            <p class="question-text">How many years of HGV experience do you have?</p>
+            <p class="answer-text">8 years</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Resume / CV section -->
+      <div data-testid="resumeSection" aria-label="resume">
+        <div class="resume-text">
+          Experienced Class 1 HGV driver with 8 years in general haulage and
+          temperature-controlled distribution. CPC holder, ADR trained. Clean
+          driving licence with no points. Available for immediate start.
+          Previously employed at DHL Supply Chain and XPO Logistics.
+        </div>
+      </div>
+
+    </div><!-- /candidateProfileContainer -->
+  </div><!-- /candidate-review-page -->
+</body>
+</html>

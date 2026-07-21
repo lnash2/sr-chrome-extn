@@ -19,15 +19,15 @@ Content-Type: application/json
   "phone": "string | null",
   "email": "string | null",
   "name": "string | null",
-  "postcode": "string | null"
+  "location": "string | null"
 }
 ```
 
 - **phone** — raw as scraped from the page (e.g. `07123 456789`, `+44 7123 456789`). The edge function normalises using the CRM's existing variation logic (`ringover-match-phones` approach).
 - **email** — raw as scraped.
 - **name** — full name string as displayed.
-- **postcode** — UK postcode as displayed.
-- At least one of: `phone`, `email`, or (`name` AND `postcode`) must be non-null.
+- **location** — town name, city, or UK postcode as displayed (e.g. `"Saffron Walden"`, `"M1 1AA"`).
+- At least one of: `phone`, `email`, or (`name` AND `location`) must be non-null.
 
 ## Response — 200 OK
 
@@ -36,7 +36,7 @@ Content-Type: application/json
   "matches": [
     {
       "candidate_id": 12345,
-      "confidence": "exact_phone | exact_email | fuzzy_name_postcode",
+      "confidence": "exact_phone | exact_email | fuzzy_name_postcode | name_location",
       "name": "John Smith",
       "active_status": "active",
       "recruiter_name": "Jane Doe",
@@ -65,6 +65,7 @@ Matches are returned highest-confidence first:
 1. `exact_phone` — phone variation match against `candidates.phone_number`
 2. `exact_email` — case-insensitive email match against `candidates.email`
 3. `fuzzy_name_postcode` — surname `ILIKE` match + postcode district match (first part, e.g. `M1` from `M1 1AA`)
+4. `name_location` — surname `ILIKE` match + `addresses.city` case-insensitive trimmed match (lowest confidence; used when the scraped location is a town/city name rather than a postcode)
 
 ### Deletion flag behaviour
 
@@ -97,10 +98,17 @@ Reuses the `ringover-match-phones` normalisation approach:
 - DB stores case-sensitive; compare case-insensitively at query time
 
 ### Fuzzy name + postcode
-- Split input name, take last token as surname
-- `candidates.surname ILIKE '%' || surname || '%'`
-- `addresses.postal_code` district match (first segment before space)
+- Split input location, check if it matches a UK postcode pattern
+- If postcode: `candidates.surname ILIKE '%' || surname || '%'` + `addresses.postal_code` district match (first segment before space)
 - Join via `candidates.address_id = addresses.id`
+- Confidence: `fuzzy_name_postcode`
+
+### Name + location (city/town)
+- If the location field is NOT a UK postcode (i.e. a town/city name like `"Saffron Walden"`):
+- `candidates.surname ILIKE '%' || surname || '%'`
+- `LOWER(TRIM(addresses.city)) = LOWER(TRIM(input_location))`
+- Join via `candidates.address_id = addresses.id`
+- Confidence: `name_location` (lowest tier — city matching is less precise than postcode)
 
 ### Data assembly
 For each matched candidate, the function joins:

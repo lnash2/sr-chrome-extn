@@ -10,10 +10,10 @@ chrome.runtime.onInstalled.addListener(() => {
 async function handleLookup(payload: LookupRequest): Promise<BackgroundResponse> {
   const hasPhone = !!payload.phone;
   const hasEmail = !!payload.email;
-  const hasNameAndPostcode = !!payload.name && !!payload.postcode;
+  const hasNameAndLocation = !!payload.name && !!payload.location;
 
-  if (!hasPhone && !hasEmail && !hasNameAndPostcode) {
-    return { ok: false, error: 'Insufficient identifiers: need phone, email, or name+postcode' };
+  if (!hasPhone && !hasEmail && !hasNameAndLocation) {
+    return { ok: false, error: 'Insufficient identifiers: need phone, email, or name+location' };
   }
 
   if (USE_MOCK) {
