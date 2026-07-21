@@ -118,6 +118,47 @@ describe('scrapeCandidate — fallback strategies', () => {
     const result = scrapeCandidate();
     expect(result.location).toBe('SW1A 2AA');
   });
+
+  it('extracts email from CV/resume section when no app tab or mailto', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="resumeSection">
+            Contact me at driver.dave@gmail.com for references.
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.email).toBe('driver.dave@gmail.com');
+  });
+
+  it('extracts phone from CV/resume section when no app tab or tel', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="resumeSection">
+            Available on 07999 123456 for immediate start.
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.phone).toBe('07999 123456');
+  });
+
+  it('falls back to full container regex when no app tab or CV section', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <p>Reach me at loose.email@example.org or call 07111 222333</p>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.email).toBe('loose.email@example.org');
+    expect(result.phone).toBe('07111 222333');
+  });
 });
 
 describe('canTriggerLookup', () => {

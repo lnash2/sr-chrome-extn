@@ -83,6 +83,23 @@ export const EMAIL_STRATEGIES: Strategy[] = [
   },
   {
     label: 'application tab email regex',
+    extract: (c) => {
+      const tab = c.querySelector('[data-testid="applicationTabContent"]');
+      return tab ? firstRegexMatch(tab, EMAIL_RE) : null;
+    },
+  },
+  {
+    label: 'CV/resume section email regex',
+    extract: (c) => {
+      const section =
+        c.querySelector('[data-testid*="resume" i]') ??
+        c.querySelector('[data-testid*="cv" i]') ??
+        c.querySelector('.resume-text, .cv-text');
+      return section ? firstRegexMatch(section, EMAIL_RE) : null;
+    },
+  },
+  {
+    label: 'full container email regex',
     extract: (c) => firstRegexMatch(c, EMAIL_RE),
   },
 ];
@@ -99,6 +116,23 @@ export const PHONE_STRATEGIES: Strategy[] = [
   },
   {
     label: 'application tab UK phone regex',
+    extract: (c) => {
+      const tab = c.querySelector('[data-testid="applicationTabContent"]');
+      return tab ? firstRegexMatch(tab, UK_PHONE_RE) : null;
+    },
+  },
+  {
+    label: 'CV/resume section UK phone regex',
+    extract: (c) => {
+      const section =
+        c.querySelector('[data-testid*="resume" i]') ??
+        c.querySelector('[data-testid*="cv" i]') ??
+        c.querySelector('.resume-text, .cv-text');
+      return section ? firstRegexMatch(section, UK_PHONE_RE) : null;
+    },
+  },
+  {
+    label: 'full container UK phone regex',
     extract: (c) => firstRegexMatch(c, UK_PHONE_RE),
   },
 ];
