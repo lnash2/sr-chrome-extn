@@ -6,26 +6,6 @@ import type { LookupRequest, BackgroundResponse } from '@/lib/types';
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
 // ---------------------------------------------------------------------------
-// Session management
-// ---------------------------------------------------------------------------
-
-/** Current access token — kept in sync by onAuthStateChange */
-let accessToken: string | null = null;
-
-async function initSession(): Promise<void> {
-  // Restore persisted session from chrome.storage.local
-  const { data: { session } } = await supabase.auth.getSession();
-  accessToken = session?.access_token ?? null;
-  console.log('[SR Extension] Session restored:', accessToken ? 'authenticated' : 'no session');
-}
-
-// Listen for auth changes (login, logout, token refresh)
-supabase.auth.onAuthStateChange((_event, session) => {
-  accessToken = session?.access_token ?? null;
-  console.log('[SR Extension] Auth state changed:', _event, accessToken ? 'has token' : 'no token');
-});
-
-// ---------------------------------------------------------------------------
 // Lookup handler
 // ---------------------------------------------------------------------------
 
@@ -43,17 +23,19 @@ async function handleLookup(payload: LookupRequest): Promise<BackgroundResponse>
     return { ok: true, data };
   }
 
-  // Live path
-  if (!accessToken) {
+  // Live path — read session fresh from chrome.storage via Supabase client
+  const { data: { session } } = await supabase.auth.getSession();
+  console.log('[SR Extension] Lookup session check:', session ? `authenticated (${session.user.email})` : 'no session');
+
+  if (!session) {
     return { ok: false, error: 'NOT_AUTHENTICATED' };
   }
 
-  const result = await liveCandidateMatch(payload, accessToken);
+  const result = await liveCandidateMatch(payload, session.access_token);
 
   // 401 → clear session so content script shows logged-out bar
   if (!result.ok && result.error === 'UNAUTHORIZED') {
     await supabase.auth.signOut();
-    accessToken = null;
     return { ok: false, error: 'NOT_AUTHENTICATED' };
   }
 
@@ -103,9 +85,3 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true; // keep message channel open for async sendResponse
 });
-
-// ---------------------------------------------------------------------------
-// Init
-// ---------------------------------------------------------------------------
-
-initSession();
