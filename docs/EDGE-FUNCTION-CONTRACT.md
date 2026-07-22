@@ -37,19 +37,47 @@ Content-Type: application/json
     {
       "candidate_id": 12345,
       "confidence": "exact_phone | exact_email | fuzzy_name_postcode | name_location",
+
       "name": "John Smith",
-      "active_status": "active",
-      "recruiter_name": "Jane Doe",
-      "licence_categories": [
-        { "category": "C+E", "expiry_date": "2027-03-15" }
-      ],
-      "licence_points": 0,
-      "last_booking_date": "2026-06-10T00:00:00Z",
-      "phone_number": "+447123456789",
-      "postcode": "M1 1AA",
+      "active_status": "active | inactive",
+      "registered_at": "ISO | null",
+      "recruiter_name": "string | null",
+      "resourcer_name": "string | null",
+
       "marked_unsuitable": false,
       "unsuitable_reason": null,
-      "marked_for_deletion": false
+      "marked_for_deletion": false,
+
+      "licence_categories": [
+        { "category": "C+E", "expiry_date": "ISO | null" }
+      ],
+      "licence_points": 0,
+      "job_categories": ["HGV Class 2", "HIAB"],
+
+      "last_booking": {
+        "date": "ISO",
+        "client_name": "string | null",
+        "status": "approved"
+      },
+      "company_booking_count": 0,
+      "agency_booking_count": 0,
+      "last_note": {
+        "text": "string (truncate server-side to 200 chars)",
+        "created_at": "ISO",
+        "author": "string | null"
+      },
+      "last_contact_date": "ISO | null",
+
+      "available_this_week": true,
+      "next_availability_date": "ISO | null",
+      "engagement": {
+        "health": "string | null",
+        "funnel_stage": "string | null",
+        "response_rate": 0.0
+      },
+
+      "phone_number": "+447123456789",
+      "postcode": "M1 1AA"
     }
   ],
   "metadata": {
@@ -57,6 +85,8 @@ Content-Type: application/json
   }
 }
 ```
+
+All fields except `candidate_id`, `confidence`, `name`, `active_status`, and `phone_number` are nullable. The panel must render gracefully with any subset present.
 
 ### Match ordering
 
@@ -85,35 +115,51 @@ All errors follow the CRM house style:
 | 401 | Missing or invalid JWT |
 | 500 | Internal server error |
 
-## Server-side matching notes
+## Server-side data assembly
+
+For each matched candidate, the function joins the following CRM tables:
+
+| Response field | Source table(s) | Notes |
+|---|---|---|
+| `name`, `active_status`, `licence_points`, `marked_unsuitable`, `unsuitable_reason`, `marked_for_deletion` | `candidates` | Direct columns |
+| `registered_at` | `candidates.registered_at` | Epoch seconds → ISO conversion server-side |
+| `recruiter_name` | `users.name` via `candidates.recruiter_id` | FK join |
+| `resourcer_name` | `users.name` via `candidates.resourcer_id` | FK join |
+| `licence_categories` | `candidate_licence_categories` | `candidate_id` join; `expiry_date` converted from epoch to ISO |
+| `job_categories` | `candidates.job_category_ids_array` → job category lookup table | Resolve IDs to human-readable names |
+| `last_booking` | `unified_bookings` | `WHERE booking_status = 'approved' ORDER BY date DESC LIMIT 1`; epoch → ISO; join client name if available |
+| `company_booking_count`, `agency_booking_count` | `unified_bookings` | Reuse `candidate-matching`'s existing count logic |
+| `last_note` | `notes` table | `ORDER BY created_at DESC LIMIT 1`; server-side truncate text to 200 chars |
+| `last_contact_date` | `unified_bookings` or activity log | Most recent interaction date; epoch → ISO |
+| `available_this_week` | `candidate_availability` | Check if availability entry exists for current week |
+| `next_availability_date` | `candidate_availability` | Next future availability entry; epoch → ISO |
+| `engagement` | `candidate_engagement_summary` | `health`, `funnel_stage`, `response_rate` |
+| `phone_number` | `candidates.phone_number` | E.164 format |
+| `postcode` | `addresses.postal_code` via `candidates.address_id` | FK join |
 
 ### Phone matching
+
 Reuses the `ringover-match-phones` normalisation approach:
 - Strip spaces, dashes, parens
 - Generate variations: `07...`, `+447...`, `447...`, `7...`
 - Query `candidates.phone_number` with `.in(variations)`
 
 ### Email matching
+
 - `LOWER(candidates.email) = LOWER(input_email)`
 - DB stores case-sensitive; compare case-insensitively at query time
 
 ### Fuzzy name + postcode
+
 - Split input location, check if it matches a UK postcode pattern
 - If postcode: `candidates.surname ILIKE '%' || surname || '%'` + `addresses.postal_code` district match (first segment before space)
 - Join via `candidates.address_id = addresses.id`
 - Confidence: `fuzzy_name_postcode`
 
 ### Name + location (city/town)
+
 - If the location field is NOT a UK postcode (i.e. a town/city name like `"Saffron Walden"`):
 - `candidates.surname ILIKE '%' || surname || '%'`
 - `LOWER(TRIM(addresses.city)) = LOWER(TRIM(input_location))`
 - Join via `candidates.address_id = addresses.id`
 - Confidence: `name_location` (lowest tier — city matching is less precise than postcode)
-
-### Data assembly
-For each matched candidate, the function joins:
-- `users.name` via `candidates.recruiter_id` for `recruiter_name`
-- `candidate_licence_categories` for `licence_categories`
-- `candidates.licence_points`
-- `unified_bookings` where `booking_status = 'approved'`, `MAX(date)` → convert epoch to ISO for `last_booking_date`
-- `addresses.postal_code` via `candidates.address_id` for `postcode`
