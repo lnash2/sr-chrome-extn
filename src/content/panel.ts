@@ -284,6 +284,34 @@ const BAR_CSS = /* css */ `
   flex-shrink: 0;
 }
 
+/* ===== Three-row match layout ===== */
+.sr-match-rows { }
+
+.sr-row-1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px 4px;
+  min-height: 32px;
+}
+
+.sr-row-2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 16px;
+  min-height: 24px;
+}
+
+.sr-row-3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 16px 8px;
+  min-height: 20px;
+}
+
 /* ===== Brand mark ===== */
 .sr-brand {
   display: flex;
@@ -446,6 +474,21 @@ const BAR_CSS = /* css */ `
   padding: 4px 6px; border-radius: 6px;
 }
 .sr-btn--ghost:hover { background: #F1F5F9; color: #0F172A; }
+
+.sr-btn--call {
+  background: #D1FAE5; color: #065F46;
+  border: 1px solid #A7F3D0;
+}
+.sr-btn--call:hover { background: #A7F3D0; }
+.sr-btn--calling {
+  background: #DBEAFE; color: #1E40AF;
+  border: 1px solid #BFDBFE;
+  cursor: wait;
+}
+.sr-btn--call-error {
+  background: #F1F5F9; color: #94A3B8;
+  border: 1px solid #E2E8F0;
+}
 
 /* ===== Collapse chevron ===== */
 .sr-collapse-btn {
@@ -655,7 +698,7 @@ function licenceChips(cats: LicenceCategory[]): string {
   }).join('');
 }
 
-function taskChip(m: CandidateMatch): string {
+function taskChipButton(m: CandidateMatch): string {
   const tasks = m.open_tasks;
   if (!tasks || tasks.length === 0) return '';
   const hasOverdue = tasks.some((t) => t.overdue);
@@ -728,19 +771,7 @@ function summaryChips(m: CandidateMatch): string {
     out.push(`<span class="sr-chip ${cls}" data-health="${esc(h)}">${esc(m.engagement.health)}</span>`);
   }
 
-  // Task chip (with popover attached)
-  out.push(taskChip(m));
-
   return out.join('');
-}
-
-function metaText(m: CandidateMatch): string {
-  const parts: string[] = [];
-  if (m.recruiter_name) parts.push(esc(m.recruiter_name));
-  if (m.resourcer_name) parts.push(esc(m.resourcer_name));
-  if (m.registered_at) parts.push(`Reg. <span title="${esc(m.registered_at.slice(0, 10))}">${relativeDate(m.registered_at)}</span>`);
-  if (parts.length === 0) return '';
-  return `<span class="sr-meta">${parts.join('<span class="sr-meta-sep">&middot;</span>')}</span>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -820,6 +851,22 @@ function phoneNotOnFileNote(scraped: LookupRequest, matches: CandidateMatch[]): 
   return `<span class="sr-phone-note" data-phone-note>${icon('phone', 'sr-icon-xs')} Phone not on file — matched by email</span>`;
 }
 
+function lastContactText(m: CandidateMatch): string {
+  if (!m.last_contact_date) return '';
+  return `<span title="${esc(m.last_contact_date.slice(0, 10))}">Last contact ${relativeDate(m.last_contact_date)}</span>`;
+}
+
+function metaRow(m: CandidateMatch): string {
+  const parts: string[] = [];
+  if (m.recruiter_name) parts.push(esc(m.recruiter_name));
+  if (m.resourcer_name) parts.push(esc(m.resourcer_name));
+  if (m.registered_at) parts.push(`Reg. <span title="${esc(m.registered_at.slice(0, 10))}">${relativeDate(m.registered_at)}</span>`);
+  const contact = lastContactText(m);
+  if (contact) parts.push(contact);
+  if (parts.length === 0) return '';
+  return `<div class="sr-row-3"><span class="sr-meta" data-meta-row>${parts.join('<span class="sr-meta-sep">&middot;</span>')}</span></div>`;
+}
+
 function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: CandidateMatch[]): string {
   const deepLink = `https://portal.swift-recruit.co.uk/swift/candidates/${m.candidate_id}`;
   const suggestion = isSuggestion(m.confidence);
@@ -829,30 +876,41 @@ function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: C
   const crmBtnClass = suggestion ? 'sr-btn--amber' : 'sr-btn--primary';
   const crmBtnLabel = suggestion ? 'Review possible match' : 'Open in CRM';
 
+  const chips = summaryChips(m);
+
   return `
-    <div class="sr-row" data-candidate-id="${m.candidate_id}">
-      ${warningText(m)}
-      <span class="sr-brand"><span class="sr-teal-dot"></span>Swift Recruit</span>
-      <span class="sr-sep"></span>
-      <span class="sr-name">${esc(m.name)}</span>
-      ${statusBadge(m.active_status)}
-      ${confBadge(m.confidence)}
-      ${caveat}
-      ${phoneNotOnFileNote(scraped, allMatches)}
-      ${summaryChips(m)}
-      ${metaText(m)}
-      <span class="sr-row-right">
-        ${noteButton(m)}
-        <a class="sr-btn ${crmBtnClass}" href="${esc(deepLink)}" target="_blank" rel="noopener" data-deeplink>
-          ${icon('externalLink', 'sr-icon-sm')} ${crmBtnLabel}
-        </a>
-        <button class="sr-btn sr-btn--secondary" type="button" data-copy-phone="${esc(m.phone_number)}">
-          ${icon('copy', 'sr-icon-sm')} ${esc(m.phone_number)}
-        </button>
-        <button class="sr-collapse-btn" type="button" data-collapse>
-          ${icon('chevronUp', 'sr-icon-sm')}
-        </button>
-      </span>
+    <div class="sr-match-rows" data-candidate-id="${m.candidate_id}">
+      <div class="sr-row-1">
+        ${warningText(m)}
+        <span class="sr-brand"><span class="sr-teal-dot"></span>Swift Recruit</span>
+        <span class="sr-sep"></span>
+        <span class="sr-name">${esc(m.name)}</span>
+        ${statusBadge(m.active_status)}
+        ${confBadge(m.confidence)}
+        ${caveat}
+        ${phoneNotOnFileNote(scraped, allMatches)}
+        <span class="sr-row-right">
+          ${noteButton(m)}
+          ${taskChipButton(m)}
+          <button class="sr-btn sr-btn--call" type="button" data-call="${m.candidate_id}" data-call-phone="${esc(m.phone_number)}" title="Call ${esc(m.name)}">
+            ${icon('phone', 'sr-icon-sm')} Call
+          </button>
+          <button class="sr-btn sr-btn--secondary" type="button" data-open-softphone="${m.candidate_id}" data-softphone-name="${esc(m.name)}" title="Open softphone">
+            ${icon('phone', 'sr-icon-sm')} Softphone
+          </button>
+          <a class="sr-btn ${crmBtnClass}" href="${esc(deepLink)}" target="_blank" rel="noopener" data-deeplink>
+            ${icon('externalLink', 'sr-icon-sm')} ${crmBtnLabel}
+          </a>
+          <button class="sr-btn sr-btn--secondary" type="button" data-copy-phone="${esc(m.phone_number)}">
+            ${icon('copy', 'sr-icon-sm')} ${esc(m.phone_number)}
+          </button>
+          <button class="sr-collapse-btn" type="button" data-collapse>
+            ${icon('chevronUp', 'sr-icon-sm')}
+          </button>
+        </span>
+      </div>
+      ${chips ? `<div class="sr-row-2">${chips}</div>` : ''}
+      ${metaRow(m)}
     </div>
   `;
 }
@@ -1020,20 +1078,60 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
     });
   });
 
-  // Note popover toggle
+  // Call button
+  root.querySelectorAll<HTMLElement>('[data-call]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const candidateId = parseInt(btn.getAttribute('data-call') ?? '0', 10);
+      const phone = btn.getAttribute('data-call-phone') ?? '';
+      btn.className = 'sr-btn sr-btn--calling';
+      btn.innerHTML = `${icon('phone', 'sr-icon-sm')} Calling…`;
+
+      chrome.runtime.sendMessage(
+        { type: 'INITIATE_CALL', payload: { candidate_id: candidateId, phone } },
+        (response: { ok: boolean; error?: string } | undefined) => {
+          if (chrome.runtime.lastError || !response?.ok) {
+            const err = response?.error ?? chrome.runtime.lastError?.message ?? 'Unknown error';
+            const isNotAvailable = err.includes('404') || err.includes('not yet');
+            btn.className = 'sr-btn sr-btn--call-error';
+            btn.innerHTML = `${icon('phone', 'sr-icon-sm')} ${isNotAvailable ? 'Call service not yet available' : 'Call failed'}`;
+            setTimeout(() => {
+              btn.className = 'sr-btn sr-btn--call';
+              btn.innerHTML = `${icon('phone', 'sr-icon-sm')} Call`;
+            }, 3000);
+          } else {
+            btn.className = 'sr-btn sr-btn--call';
+            btn.innerHTML = `${icon('phone', 'sr-icon-sm')} Call`;
+          }
+        },
+      );
+    });
+  });
+
+  // Open softphone side panel
+  root.querySelectorAll<HTMLElement>('[data-open-softphone]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const candidateId = parseInt(btn.getAttribute('data-open-softphone') ?? '0', 10);
+      const name = btn.getAttribute('data-softphone-name') ?? '';
+      chrome.runtime.sendMessage({ type: 'OPEN_SOFTPHONE', payload: { candidate_id: candidateId, name } });
+    });
+  });
+
+  // Note popover toggle — traverse up to .sr-note-anchor to find sibling popover
   root.querySelectorAll<HTMLElement>('[data-note-toggle]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const popover = btn.parentElement?.querySelector('[data-note-popover]') as HTMLElement | null;
+      const anchor = btn.closest('.sr-note-anchor');
+      const popover = anchor?.querySelector('[data-note-popover]') as HTMLElement | null;
       if (popover) popover.hidden = !popover.hidden;
     });
   });
 
-  // Task popover toggle
+  // Task popover toggle — traverse up to .sr-task-anchor
   root.querySelectorAll<HTMLElement>('[data-task-toggle]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const popover = btn.parentElement?.querySelector('[data-task-popover]') as HTMLElement | null;
+      const anchor = btn.closest('.sr-task-anchor');
+      const popover = anchor?.querySelector('[data-task-popover]') as HTMLElement | null;
       if (popover) popover.hidden = !popover.hidden;
     });
   });

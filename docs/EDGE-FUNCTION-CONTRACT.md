@@ -183,3 +183,46 @@ Reuses the `ringover-match-phones` normalisation approach:
 - `LOWER(TRIM(addresses.city)) = LOWER(TRIM(input_location))`
 - Join via `candidates.address_id = addresses.id`
 - Confidence: `name_location` (lowest tier — city matching is less precise than postcode)
+
+---
+
+# Edge Function Contract: `initiate-call`
+
+**Endpoint:** `POST /functions/v1/initiate-call`  
+**Auth:** Bearer `<recruiter JWT>` — same auth pattern as `candidate-match`.
+
+## Request
+
+```http
+POST /functions/v1/initiate-call
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "candidate_id": 12345,
+  "phone": "+447123456789"
+}
+```
+
+- **candidate_id** — CRM candidate ID (for logging/audit)
+- **phone** — E.164 phone number to call
+
+## Response — 200 OK
+
+```json
+{ "ok": true }
+```
+
+## Behaviour
+
+The server calls the Ringover API to initiate a click-to-call using the authenticated recruiter's Ringover identity. The recruiter's phone rings first; when answered, the candidate's number is dialled.
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| 401 | Missing or invalid JWT |
+| 404 | Endpoint not deployed yet (extension handles gracefully) |
+| 500 | Internal server error / Ringover API failure |

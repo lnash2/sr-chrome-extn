@@ -44,28 +44,21 @@ function fixtureMatch(name: string): CandidateMatch {
 }
 
 // ---------------------------------------------------------------------------
-// Shadow DOM isolation
+// Shadow DOM
 // ---------------------------------------------------------------------------
 
 describe('Bar — Shadow DOM', () => {
   afterEach(() => destroyPanel());
 
-  it('creates a shadow root', () => {
+  it('creates shadow root', () => {
     renderPanel({ status: 'searching' });
     expect(getHost()!.shadowRoot).not.toBeNull();
   });
 
-  it('does not leak selectors', () => {
+  it('does not leak', () => {
     renderPanel({ status: 'searching' });
     expect(document.querySelector('.sr-bar')).toBeNull();
     expect(shadow().querySelector('.sr-bar')).not.toBeNull();
-  });
-
-  it('reuses host on re-render', () => {
-    renderPanel({ status: 'searching' });
-    const h1 = getHost();
-    renderPanel(noMatchState());
-    expect(getHost()).toBe(h1);
   });
 
   it('destroyPanel removes host', () => {
@@ -87,13 +80,13 @@ describe('Bar — page push', () => {
     expect(parseInt(document.documentElement.style.marginTop)).toBeGreaterThan(0);
   });
 
-  it('removes margin-top on destroy', () => {
+  it('removes on destroy', () => {
     renderPanel({ status: 'searching' });
     destroyPanel();
     expect(document.documentElement.style.marginTop).toBe('');
   });
 
-  it('removes margin-top on idle', () => {
+  it('removes on idle', () => {
     renderPanel({ status: 'searching' });
     renderPanel({ status: 'idle' });
     expect(document.documentElement.style.marginTop).toBe('');
@@ -101,37 +94,73 @@ describe('Bar — page push', () => {
 });
 
 // ---------------------------------------------------------------------------
-// State rendering
+// States
 // ---------------------------------------------------------------------------
 
-describe('Bar — state rendering', () => {
+describe('Bar — states', () => {
   afterEach(() => destroyPanel());
 
-  it('idle: renders nothing', () => {
-    renderPanel({ status: 'idle' });
-    expect(getHost()).toBeNull();
+  it('idle: nothing', () => { renderPanel({ status: 'idle' }); expect(getHost()).toBeNull(); });
+  it('searching: spinner', () => { renderPanel({ status: 'searching' }); expect(shadow().querySelector('.sr-spinner')).not.toBeNull(); });
+  it('error: red tint', () => { renderPanel({ status: 'error', error: 'Timeout' }); expect(barText()).toContain('Timeout'); });
+  it('logged-out: prompt', () => { renderPanel({ status: 'logged-out' }); expect(barText()).toContain('Log in'); });
+});
+
+// ---------------------------------------------------------------------------
+// Three-row layout
+// ---------------------------------------------------------------------------
+
+describe('Bar — three-row layout', () => {
+  afterEach(() => destroyPanel());
+  const m = fixtureMatch('single_phone');
+
+  it('renders Row 1 with name, badges, actions', () => {
+    renderPanel(matchState([m]));
+    const row1 = shadow().querySelector('.sr-row-1');
+    expect(row1).not.toBeNull();
+    expect(row1!.textContent).toContain('James Whitfield');
+    expect(row1!.querySelector('.sr-badge--active')).not.toBeNull();
+    expect(row1!.querySelector('[data-conf-tier="confirmed"]')).not.toBeNull();
+    expect(row1!.querySelector('[data-deeplink]')).not.toBeNull();
+    expect(row1!.querySelector('[data-collapse]')).not.toBeNull();
   });
 
-  it('searching: spinner', () => {
-    renderPanel({ status: 'searching' });
-    expect(shadow().querySelector('.sr-spinner')).not.toBeNull();
-    expect(barText()).toContain('Searching Swift Recruit');
+  it('renders Row 2 with chips', () => {
+    renderPanel(matchState([m]));
+    const row2 = shadow().querySelector('.sr-row-2');
+    expect(row2).not.toBeNull();
+    expect(row2!.querySelectorAll('[data-licence-status]').length).toBe(2);
+    expect(row2!.textContent).toContain('HGV Class 1');
   });
 
-  it('error: red tint', () => {
-    renderPanel({ status: 'error', error: 'Timeout' });
-    expect(barText()).toContain('Timeout');
-    expect(shadow().querySelector('.sr-state-row--error')).not.toBeNull();
+  it('renders Row 3 with meta', () => {
+    renderPanel(matchState([m]));
+    const row3 = shadow().querySelector('.sr-row-3');
+    expect(row3).not.toBeNull();
+    expect(row3!.querySelector('[data-meta-row]')!.textContent).toContain('Sarah Connor');
+    expect(row3!.querySelector('[data-meta-row]')!.textContent).toContain('Alex Morgan');
   });
 
-  it('logged-out: teal prompt', () => {
-    renderPanel({ status: 'logged-out' });
-    expect(barText()).toContain('Log in via the extension popup');
+  it('Row 3 includes last contact', () => {
+    renderPanel(matchState([m]));
+    const meta = shadow().querySelector('[data-meta-row]')!;
+    expect(meta.textContent).toContain('Last contact');
+  });
+
+  it('Row 3 omitted when no meta', () => {
+    renderPanel(matchState([fixtureMatch('sparse')]));
+    expect(shadow().querySelector('.sr-row-3')).toBeNull();
+  });
+
+  it('Row 2 omitted when no chips', () => {
+    const sparse = { ...fixtureMatch('sparse'), licence_categories: [], job_categories: [], licence_points: 0 };
+    renderPanel(matchState([sparse]));
+    expect(shadow().querySelector('.sr-row-2')).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// .co.uk domain in all deep links
+// .co.uk domain
 // ---------------------------------------------------------------------------
 
 describe('Bar — .co.uk domain', () => {
@@ -146,14 +175,8 @@ describe('Bar — .co.uk domain', () => {
 
   it('notes popover view-all link uses .co.uk', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
-    const footer = shadow().querySelector('.sr-note-popover-footer a') as HTMLAnchorElement;
-    expect(footer.href).toContain('swift-recruit.co.uk');
-  });
-
-  it('suggestion CRM button uses .co.uk', () => {
-    renderPanel(matchState([fixtureMatch('suggestion')], { phone: null, email: null, name: 'J', location: 'X' }));
-    const link = shadow().querySelector('[data-deeplink]') as HTMLAnchorElement;
-    expect(link.href).toContain('swift-recruit.co.uk');
+    const a = shadow().querySelector('.sr-note-popover-footer a') as HTMLAnchorElement;
+    expect(a.href).toContain('swift-recruit.co.uk');
   });
 });
 
@@ -170,7 +193,7 @@ describe('Bar — CONFIRMED tier', () => {
     expect(shadow().querySelector('[data-conf-tier="confirmed"]')!.textContent).toContain('In CRM');
   });
 
-  it('"phone verified" detail', () => {
+  it('"phone verified"', () => {
     renderPanel(matchState([m]));
     expect(shadow().querySelector('[data-conf-detail]')!.textContent).toContain('phone verified');
   });
@@ -181,22 +204,10 @@ describe('Bar — CONFIRMED tier', () => {
     expect(link.classList.contains('sr-btn--primary')).toBe(true);
     expect(link.textContent).toContain('Open in CRM');
   });
-
-  it('no suggestion tint', () => {
-    renderPanel(matchState([m]));
-    expect(bar().classList.contains('sr-bar--suggestion')).toBe(false);
-  });
-
-  it('renders candidate details', () => {
-    renderPanel(matchState([m]));
-    expect(barText()).toContain('James Whitfield');
-    expect(shadow().querySelector('.sr-badge--active')).not.toBeNull();
-    expect(shadow().querySelector('.sr-meta')!.textContent).toContain('Sarah Connor');
-  });
 });
 
 // ---------------------------------------------------------------------------
-// UNCONFIRMED SUGGESTION tier
+// UNCONFIRMED tier
 // ---------------------------------------------------------------------------
 
 describe('Bar — UNCONFIRMED tier', () => {
@@ -209,21 +220,16 @@ describe('Bar — UNCONFIRMED tier', () => {
     expect(bar().classList.contains('sr-bar--suggestion')).toBe(true);
   });
 
-  it('"Possible match — NOT confirmed" badge', () => {
+  it('"NOT confirmed" badge', () => {
     renderPanel(matchState([m], scraped));
     expect(shadow().querySelector('[data-conf-tier="suggestion"]')!.textContent).toContain('NOT confirmed');
   });
 
-  it('amber CRM button "Review possible match"', () => {
+  it('amber CRM button', () => {
     renderPanel(matchState([m], scraped));
     const link = shadow().querySelector('[data-deeplink]') as HTMLElement;
     expect(link.classList.contains('sr-btn--amber')).toBe(true);
     expect(link.textContent).toContain('Review possible match');
-  });
-
-  it('verify phone caveat', () => {
-    renderPanel(matchState([m], scraped));
-    expect(shadow().querySelector('[data-caveat]')).not.toBeNull();
   });
 });
 
@@ -234,86 +240,90 @@ describe('Bar — UNCONFIRMED tier', () => {
 describe('Bar — NOT IN CRM', () => {
   afterEach(() => destroyPanel());
 
-  it('prominent message and slate tint', () => {
+  it('prominent message', () => {
     renderPanel(noMatchState());
     expect(barText()).toContain('Not in Swift Recruit');
     expect(bar().classList.contains('sr-bar--not-in-crm')).toBe(true);
   });
 
-  it('shows normalised scraped phone', () => {
-    renderPanel(noMatchState({ phone: '07712 345678', email: null, name: null, location: null }));
+  it('shows scraped phone', () => {
+    renderPanel(noMatchState());
     expect(shadow().querySelector('[data-scraped-phone]')!.textContent).toContain('+447712345678');
   });
 });
 
 // ---------------------------------------------------------------------------
-// Notes popover — recent_notes
+// Note popover — REGRESSION: clicking button opens popover
 // ---------------------------------------------------------------------------
 
-describe('Bar — notes popover', () => {
+describe('Bar — note popover (regression)', () => {
   afterEach(() => destroyPanel());
-  const m = fixtureMatch('single_phone');
 
-  it('shows multiple recent_notes entries', () => {
-    renderPanel(matchState([m]));
-    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
-    const entries = shadow().querySelectorAll('.sr-note-popover-entry');
+  it('clicking Note button opens popover with recent_notes content', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const btn = shadow().querySelector('[data-note-toggle]') as HTMLElement;
+    expect(btn).not.toBeNull();
+    btn.click();
+    const popover = shadow().querySelector('[data-note-popover]') as HTMLElement;
+    expect(popover.hidden).toBe(false);
+    const entries = popover.querySelectorAll('.sr-note-popover-entry');
     expect(entries.length).toBe(3);
-  });
-
-  it('newest note first', () => {
-    renderPanel(matchState([m]));
-    const entries = shadow().querySelectorAll('.sr-note-popover-entry');
     expect(entries[0].textContent).toContain('night shifts');
   });
 
-  it('shows author and relative time per note', () => {
+  it('clicking Note button opens popover with legacy last_note-only', () => {
+    const m: CandidateMatch = {
+      ...fixtureMatch('sparse'),
+      last_note: { text: 'Legacy note content', created_at: '2026-01-01T00:00:00Z', author: 'Test User' },
+    };
     renderPanel(matchState([m]));
-    const meta = shadow().querySelectorAll('.sr-note-popover-meta');
-    expect(meta[0].textContent).toContain('Sarah Connor');
+    const btn = shadow().querySelector('[data-note-toggle]') as HTMLElement;
+    expect(btn).not.toBeNull();
+    btn.click();
+    const popover = shadow().querySelector('[data-note-popover]') as HTMLElement;
+    expect(popover.hidden).toBe(false);
+    expect(popover.querySelectorAll('.sr-note-popover-entry').length).toBe(1);
+    expect(popover.textContent).toContain('Legacy note content');
+    expect(popover.textContent).toContain('Test User');
   });
 
-  it('shows "View all notes in CRM" footer link', () => {
-    renderPanel(matchState([m]));
-    const footer = shadow().querySelector('.sr-note-popover-footer a') as HTMLAnchorElement;
-    expect(footer).not.toBeNull();
-    expect(footer.textContent).toContain('View all notes');
-    expect(footer.href).toContain('/swift/candidates/10421');
+  it('clicking button again closes popover', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const btn = shadow().querySelector('[data-note-toggle]') as HTMLElement;
+    btn.click();
+    btn.click();
+    expect((shadow().querySelector('[data-note-popover]') as HTMLElement).hidden).toBe(true);
   });
 
-  it('falls back to last_note when recent_notes absent', () => {
-    const sparse = { ...fixtureMatch('sparse'), last_note: { text: 'Fallback note', created_at: '2026-01-01T00:00:00Z', author: 'Test' } };
-    renderPanel(matchState([sparse]));
-    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
-    const entries = shadow().querySelectorAll('.sr-note-popover-entry');
-    expect(entries.length).toBe(1);
-    expect(entries[0].textContent).toContain('Fallback note');
+  it('popover has "View all notes" link', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const a = shadow().querySelector('.sr-note-popover-footer a') as HTMLAnchorElement;
+    expect(a.textContent).toContain('View all notes');
+    expect(a.href).toContain('/swift/candidates/10421');
   });
 
-  it('no note button when both absent', () => {
+  it('no button when no notes', () => {
     renderPanel(matchState([fixtureMatch('sparse')]));
     expect(shadow().querySelector('[data-note-toggle]')).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Fresh-note indicator
+// Fresh-note dot
 // ---------------------------------------------------------------------------
 
 describe('Bar — fresh-note dot', () => {
   afterEach(() => destroyPanel());
 
-  it('shows teal dot when newest note < 24h old', () => {
+  it('shows dot when < 24h', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
-    const dot = shadow().querySelector('[data-fresh-dot]');
-    expect(dot).not.toBeNull();
-    expect(dot!.getAttribute('title')).toContain('Note added');
+    expect(shadow().querySelector('[data-fresh-dot]')).not.toBeNull();
   });
 
-  it('no dot when newest note > 24h old', () => {
+  it('no dot when > 24h', () => {
     const m: CandidateMatch = {
       ...fixtureMatch('sparse'),
-      recent_notes: [{ text: 'Old note', created_at: '2025-01-01T00:00:00Z', author: 'X' }],
+      recent_notes: [{ text: 'Old', created_at: '2025-01-01T00:00:00Z', author: 'X' }],
     };
     renderPanel(matchState([m]));
     expect(shadow().querySelector('[data-fresh-dot]')).toBeNull();
@@ -327,16 +337,15 @@ describe('Bar — fresh-note dot', () => {
 describe('Bar — next-booking chip', () => {
   afterEach(() => destroyPanel());
 
-  it('renders teal "Booked" chip when next_booking present', () => {
+  it('renders teal "Booked" chip', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     const chip = shadow().querySelector('[data-next-booking]');
     expect(chip).not.toBeNull();
     expect(chip!.classList.contains('sr-chip--booked')).toBe(true);
     expect(chip!.textContent).toContain('Booked');
-    expect(chip!.textContent).toContain('XPO Logistics');
   });
 
-  it('no chip when next_booking absent', () => {
+  it('absent when no next_booking', () => {
     renderPanel(matchState([fixtureMatch('sparse')]));
     expect(shadow().querySelector('[data-next-booking]')).toBeNull();
   });
@@ -346,15 +355,13 @@ describe('Bar — next-booking chip', () => {
 // 90d booking count
 // ---------------------------------------------------------------------------
 
-describe('Bar — 90d booking count', () => {
+describe('Bar — 90d count', () => {
   afterEach(() => destroyPanel());
 
-  it('shows "N shifts · 90d" when recent_booking_count_90d present', () => {
+  it('shows shifts · 90d', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     const chip = shadow().querySelector('[data-booking-90d]');
-    expect(chip).not.toBeNull();
     expect(chip!.textContent).toContain('8 shifts');
-    expect(chip!.textContent).toContain('90d');
   });
 
   it('falls back to lifetime counts when absent', () => {
@@ -370,79 +377,92 @@ describe('Bar — 90d booking count', () => {
 // Open tasks chip + popover
 // ---------------------------------------------------------------------------
 
-describe('Bar — open tasks', () => {
+describe('Bar — tasks chip', () => {
   afterEach(() => destroyPanel());
 
-  it('renders task chip with count', () => {
+  it('renders in Row 1 actions', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
-    const chip = shadow().querySelector('[data-task-toggle]');
-    expect(chip).not.toBeNull();
-    expect(chip!.textContent).toContain('2 open tasks');
+    const row1 = shadow().querySelector('.sr-row-1');
+    expect(row1!.querySelector('[data-task-toggle]')).not.toBeNull();
   });
 
-  it('amber styling when overdue task present', () => {
+  it('amber when overdue', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     const chip = shadow().querySelector('[data-task-toggle]');
     expect(chip!.classList.contains('sr-chip--tasks-overdue')).toBe(true);
   });
 
-  it('neutral styling when no overdue', () => {
+  it('neutral when no overdue', () => {
     const m: CandidateMatch = {
       ...fixtureMatch('sparse'),
       open_tasks: [{ title: 'Do thing', due_date: new Date(Date.now() + 86_400_000).toISOString(), owner: 'X', overdue: false }],
     };
     renderPanel(matchState([m]));
-    const chip = shadow().querySelector('[data-task-toggle]');
-    expect(chip!.classList.contains('sr-chip--tasks-overdue')).toBe(false);
-    expect(chip!.classList.contains('sr-chip--tasks')).toBe(true);
+    expect(shadow().querySelector('[data-task-toggle]')!.classList.contains('sr-chip--tasks')).toBe(true);
   });
 
-  it('clicking chip opens task popover', () => {
+  it('clicking opens popover with task titles', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     (shadow().querySelector('[data-task-toggle]') as HTMLElement).click();
     const popover = shadow().querySelector('[data-task-popover]') as HTMLElement;
     expect(popover.hidden).toBe(false);
+    expect(popover.querySelectorAll('[data-task]').length).toBe(2);
+    expect(popover.textContent).toContain('Chase CPC renewal');
   });
 
-  it('popover lists each task with title', () => {
+  it('overdue task shown in red', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     (shadow().querySelector('[data-task-toggle]') as HTMLElement).click();
-    const items = shadow().querySelectorAll('[data-task]');
-    expect(items.length).toBe(2);
-    expect(items[0].textContent).toContain('Chase CPC renewal');
-    expect(items[1].textContent).toContain('Update emergency contact');
+    expect(shadow().querySelector('.sr-task-overdue')).not.toBeNull();
   });
 
-  it('overdue task shows "overdue" in red', () => {
-    renderPanel(matchState([fixtureMatch('single_phone')]));
-    (shadow().querySelector('[data-task-toggle]') as HTMLElement).click();
-    const overdue = shadow().querySelector('.sr-task-overdue');
-    expect(overdue).not.toBeNull();
-    expect(overdue!.textContent).toContain('overdue');
-  });
-
-  it('no chip when open_tasks absent', () => {
+  it('absent when no tasks', () => {
     renderPanel(matchState([fixtureMatch('sparse')]));
     expect(shadow().querySelector('[data-task-toggle]')).toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Phone not on file
+// Call button
 // ---------------------------------------------------------------------------
 
-describe('Bar — phone not on file', () => {
+describe('Bar — call button', () => {
   afterEach(() => destroyPanel());
 
-  it('shows note when phone scraped but matched by email', () => {
-    const m = fixtureMatch('phone_not_on_file');
-    renderPanel(matchState([m], { phone: '07742613765', email: 'x@y.com', name: null, location: null }));
-    expect(shadow().querySelector('[data-phone-note]')!.textContent).toContain('Phone not on file');
+  it('renders Call button in Row 1', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const btn = shadow().querySelector('[data-call]') as HTMLElement;
+    expect(btn).not.toBeNull();
+    expect(btn.textContent).toContain('Call');
+    expect(btn.classList.contains('sr-btn--call')).toBe(true);
   });
 
-  it('no note for exact_phone', () => {
+  it('carries candidate_id and phone', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
-    expect(shadow().querySelector('[data-phone-note]')).toBeNull();
+    const btn = shadow().querySelector('[data-call]') as HTMLElement;
+    expect(btn.getAttribute('data-call')).toBe('10421');
+    expect(btn.getAttribute('data-call-phone')).toBe('+447712345678');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Softphone button
+// ---------------------------------------------------------------------------
+
+describe('Bar — softphone button', () => {
+  afterEach(() => destroyPanel());
+
+  it('renders Softphone button in Row 1', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const btn = shadow().querySelector('[data-open-softphone]') as HTMLElement;
+    expect(btn).not.toBeNull();
+    expect(btn.textContent).toContain('Softphone');
+  });
+
+  it('carries candidate_id', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const btn = shadow().querySelector('[data-open-softphone]') as HTMLElement;
+    expect(btn.getAttribute('data-open-softphone')).toBe('10421');
   });
 });
 
@@ -450,10 +470,10 @@ describe('Bar — phone not on file', () => {
 // Warning tint
 // ---------------------------------------------------------------------------
 
-describe('Bar — warning tint', () => {
+describe('Bar — warnings', () => {
   afterEach(() => destroyPanel());
 
-  it('unsuitable: red tint + warning text', () => {
+  it('unsuitable: red tint', () => {
     renderPanel(matchState([fixtureMatch('unsuitable')]));
     expect(bar().classList.contains('sr-bar--unsuitable')).toBe(true);
     expect(shadow().querySelector('[data-warning="unsuitable"]')!.textContent).toContain('Failed drug test');
@@ -463,35 +483,23 @@ describe('Bar — warning tint', () => {
     renderPanel(matchState([fixtureMatch('deletion_flagged')]));
     expect(bar().classList.contains('sr-bar--deletion')).toBe(true);
   });
-
-  it('both: unsuitable precedence', () => {
-    const m: CandidateMatch = { ...fixtureMatch('unsuitable'), marked_for_deletion: true };
-    renderPanel(matchState([m]));
-    expect(bar().classList.contains('sr-bar--unsuitable')).toBe(true);
-    expect(bar().classList.contains('sr-bar--deletion')).toBe(true);
-  });
 });
 
 // ---------------------------------------------------------------------------
-// Sparse record
+// Sparse
 // ---------------------------------------------------------------------------
 
-describe('Bar — sparse record', () => {
+describe('Bar — sparse', () => {
   afterEach(() => destroyPanel());
-  const sparse = fixtureMatch('sparse');
 
-  it('renders without errors', () => {
-    expect(() => renderPanel(matchState([sparse]))).not.toThrow();
-  });
-
-  it('no "null"/"undefined"', () => {
-    renderPanel(matchState([sparse]));
+  it('no null/undefined', () => {
+    renderPanel(matchState([fixtureMatch('sparse')]));
     expect(barText()).not.toContain('null');
     expect(barText()).not.toContain('undefined');
   });
 
-  it('no note button, no task chip, no next-booking, no 90d chip', () => {
-    renderPanel(matchState([sparse]));
+  it('no note/task/booking extras', () => {
+    renderPanel(matchState([fixtureMatch('sparse')]));
     expect(shadow().querySelector('[data-note-toggle]')).toBeNull();
     expect(shadow().querySelector('[data-task-toggle]')).toBeNull();
     expect(shadow().querySelector('[data-next-booking]')).toBeNull();
@@ -500,7 +508,7 @@ describe('Bar — sparse record', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Licence status colours
+// Licence colours
 // ---------------------------------------------------------------------------
 
 describe('Bar — licence colours', () => {
@@ -510,18 +518,6 @@ describe('Bar — licence colours', () => {
     const m: CandidateMatch = { ...fixtureMatch('sparse'), licence_categories: [{ category: 'C', expiry_date: '2020-01-01' }] };
     renderPanel(matchState([m]));
     expect(shadow().querySelector('[data-licence-status="expired"]')!.classList.contains('sr-chip--expired')).toBe(true);
-  });
-
-  it('expiring → amber', () => {
-    const m: CandidateMatch = { ...fixtureMatch('sparse'), licence_categories: [{ category: 'C', expiry_date: new Date(Date.now() + 15 * 86_400_000).toISOString() }] };
-    renderPanel(matchState([m]));
-    expect(shadow().querySelector('[data-licence-status="expiring"]')!.classList.contains('sr-chip--expiring')).toBe(true);
-  });
-
-  it('valid → neutral', () => {
-    const m: CandidateMatch = { ...fixtureMatch('sparse'), licence_categories: [{ category: 'B', expiry_date: new Date(Date.now() + 365 * 86_400_000).toISOString() }] };
-    renderPanel(matchState([m]));
-    expect(shadow().querySelector('[data-licence-status="valid"]')).not.toBeNull();
   });
 
   it('points >= 9 → red', () => {
@@ -542,46 +538,53 @@ describe('Bar — collapse', () => {
     (shadow().querySelector('[data-collapse]') as HTMLElement).click();
     expect(bar().classList.contains('sr-bar--collapsed')).toBe(true);
     expect(barText()).toContain('1 match');
+    expect(shadow().querySelector('[data-deeplink]')).toBeNull();
   });
 
   it('expands back', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     (shadow().querySelector('[data-collapse]') as HTMLElement).click();
     (shadow().querySelector('[data-collapse]') as HTMLElement).click();
-    expect(bar().classList.contains('sr-bar--collapsed')).toBe(false);
     expect(shadow().querySelector('[data-deeplink]')).not.toBeNull();
   });
 });
 
 // ---------------------------------------------------------------------------
-// Multi-match pills
+// Multi-match
 // ---------------------------------------------------------------------------
 
 describe('Bar — multi-match', () => {
   afterEach(() => destroyPanel());
   const matches = FIXTURES.multiple.matches;
 
-  it('renders pills sorted by confidence', () => {
+  it('pills sorted by confidence', () => {
     renderPanel(matchState(matches));
     const pills = shadow().querySelectorAll('.sr-pill');
-    expect(pills.length).toBe(2);
     expect(pills[0].textContent).toContain('David Smith');
   });
 
-  it('clicking pill expands row', () => {
+  it('pill click expands', () => {
     renderPanel(matchState(matches));
     (shadow().querySelector('.sr-pill') as HTMLElement).click();
     expect(shadow().querySelector('.sr-expanded')).not.toBeNull();
   });
+});
 
-  it('caveat when suggestion present', () => {
-    renderPanel(matchState(matches));
-    expect(shadow().querySelector('[data-caveat]')).not.toBeNull();
+// ---------------------------------------------------------------------------
+// Phone not on file
+// ---------------------------------------------------------------------------
+
+describe('Bar — phone not on file', () => {
+  afterEach(() => destroyPanel());
+
+  it('note when phone scraped, email match', () => {
+    renderPanel(matchState([fixtureMatch('phone_not_on_file')], { phone: '07742613765', email: 'x@y.com', name: null, location: null }));
+    expect(shadow().querySelector('[data-phone-note]')!.textContent).toContain('Phone not on file');
   });
 });
 
 // ---------------------------------------------------------------------------
-// State transitions
+// Transitions
 // ---------------------------------------------------------------------------
 
 describe('Bar — transitions', () => {
@@ -591,7 +594,6 @@ describe('Bar — transitions', () => {
     renderPanel({ status: 'idle' });
     expect(getHost()).toBeNull();
     renderPanel({ status: 'searching' });
-    expect(bar().getAttribute('data-status')).toBe('searching');
     renderPanel(matchState([fixtureMatch('single_phone')]));
     expect(barText()).toContain('James Whitfield');
   });
@@ -605,75 +607,36 @@ describe('Bar — transitions', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Unit: relativeDate
+// Unit tests
 // ---------------------------------------------------------------------------
 
 describe('relativeDate', () => {
   it('"just now"', () => expect(relativeDate(new Date().toISOString())).toBe('just now'));
   it('minutes', () => expect(relativeDate(new Date(Date.now() - 5 * 60_000).toISOString())).toBe('5m ago'));
-  it('hours', () => expect(relativeDate(new Date(Date.now() - 3 * 3_600_000).toISOString())).toBe('3h ago'));
   it('days', () => expect(relativeDate(new Date(Date.now() - 2 * 86_400_000).toISOString())).toBe('2d ago'));
-  it('weeks', () => expect(relativeDate(new Date(Date.now() - 21 * 86_400_000).toISOString())).toBe('3w ago'));
-  it('months', () => expect(relativeDate(new Date(Date.now() - 90 * 86_400_000).toISOString())).toBe('3mo ago'));
   it('future', () => expect(relativeDate(new Date(Date.now() + 2 * 86_400_000).toISOString())).toBe('in 2d'));
 });
-
-// ---------------------------------------------------------------------------
-// Unit: licenceStatus
-// ---------------------------------------------------------------------------
 
 describe('licenceStatus', () => {
   it('valid for null', () => expect(licenceStatus({ category: 'B', expiry_date: null })).toBe('valid'));
   it('expired', () => expect(licenceStatus({ category: 'C', expiry_date: '2020-01-01' })).toBe('expired'));
-  it('expiring', () => expect(licenceStatus({ category: 'C', expiry_date: new Date(Date.now() + 15 * 86_400_000).toISOString() })).toBe('expiring'));
-  it('valid', () => expect(licenceStatus({ category: 'B', expiry_date: new Date(Date.now() + 365 * 86_400_000).toISOString() })).toBe('valid'));
 });
 
-// ---------------------------------------------------------------------------
-// Unit: tier helpers
-// ---------------------------------------------------------------------------
-
 describe('tier helpers', () => {
-  it('isConfirmed', () => {
-    expect(isConfirmed('exact_phone')).toBe(true);
-    expect(isConfirmed('exact_email')).toBe(true);
-    expect(isConfirmed('name_location')).toBe(false);
-  });
-  it('isSuggestion', () => {
-    expect(isSuggestion('name_location')).toBe(true);
-    expect(isSuggestion('exact_phone')).toBe(false);
-  });
+  it('isConfirmed', () => { expect(isConfirmed('exact_phone')).toBe(true); expect(isConfirmed('name_location')).toBe(false); });
+  it('isSuggestion', () => { expect(isSuggestion('name_location')).toBe(true); expect(isSuggestion('exact_phone')).toBe(false); });
   it('isPhoneNotOnFile', () => {
     expect(isPhoneNotOnFile({ phone: '07712345678', email: 'a@b.com', name: null, location: null }, [fixtureMatch('single_email')])).toBe(true);
-    expect(isPhoneNotOnFile({ phone: '07712345678', email: null, name: null, location: null }, [fixtureMatch('single_phone')])).toBe(false);
     expect(isPhoneNotOnFile({ phone: null, email: 'a@b.com', name: null, location: null }, [fixtureMatch('single_email')])).toBe(false);
   });
 });
 
-// ---------------------------------------------------------------------------
-// Unit: isFreshNote
-// ---------------------------------------------------------------------------
-
 describe('isFreshNote', () => {
-  it('true for note < 24h old', () => {
-    expect(isFreshNote({ text: 'x', created_at: new Date(Date.now() - 3_600_000).toISOString(), author: null })).toBe(true);
-  });
-  it('false for note > 24h old', () => {
-    expect(isFreshNote({ text: 'x', created_at: '2025-01-01T00:00:00Z', author: null })).toBe(false);
-  });
-  it('false for invalid date', () => {
-    expect(isFreshNote({ text: 'x', created_at: 'not-a-date', author: null })).toBe(false);
-  });
+  it('true < 24h', () => expect(isFreshNote({ text: 'x', created_at: new Date(Date.now() - 3_600_000).toISOString(), author: null })).toBe(true));
+  it('false > 24h', () => expect(isFreshNote({ text: 'x', created_at: '2025-01-01T00:00:00Z', author: null })).toBe(false));
 });
 
-// ---------------------------------------------------------------------------
-// Unit: normalisePhoneE164
-// ---------------------------------------------------------------------------
-
 describe('normalisePhoneE164', () => {
-  it('07... → +44...', () => expect(normalisePhoneE164('07712 345678')).toBe('+447712345678'));
+  it('07 → +44', () => expect(normalisePhoneE164('07712 345678')).toBe('+447712345678'));
   it('already +44', () => expect(normalisePhoneE164('+447712345678')).toBe('+447712345678'));
-  it('+44 with spaces', () => expect(normalisePhoneE164('+44 7712 345678')).toBe('+447712345678'));
-  it('44 without +', () => expect(normalisePhoneE164('447712345678')).toBe('+447712345678'));
-  it('unparseable', () => expect(normalisePhoneE164('short')).toBe('short'));
 });

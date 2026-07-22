@@ -3,7 +3,7 @@
   "name": "Swift Recruit - Candidate Lookup",
   "version": "0.1.0",
   "description": "Matches Indeed candidate profiles against the Swift Recruit CRM.",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "sidePanel"],
   "host_permissions": ["https://*.indeed.com/*"],
   "action": {
     "default_popup": "src/popup/index.html",
@@ -21,6 +21,9 @@
   "background": {
     "service_worker": "src/background/index.ts",
     "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/sidepanel/index.html"
   },
   "content_scripts": [
     {
