@@ -1,7 +1,7 @@
 import type { LookupRequest, BackgroundResponse } from '@/lib/types';
 import { scrapeCandidate, canTriggerLookup, isOnCandidatePage } from './scraper';
 import type { ScrapeResult } from './selectors';
-import { renderPanel, type PanelState } from './panel';
+import { renderPanel, destroyPanel, type PanelState } from './panel';
 
 console.log('[SR Extension] Content script loaded on', window.location.href);
 
