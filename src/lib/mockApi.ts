@@ -29,10 +29,10 @@ const FIXTURES: Record<string, MatchResponse> = {
         agency_booking_count: 3,
         last_note: {
           text: 'Spoke with James — available for night shifts from next week. Prefers temp-to-perm roles. Has own PPE and is ADR trained.',
-          created_at: '2026-07-15T10:30:00Z',
+          created_at: new Date(Date.now() - 2 * 3_600_000).toISOString(), // matches newest recent_note
           author: 'Sarah Connor',
         },
-        last_contact_date: '2026-07-15T10:30:00Z',
+        last_contact_date: new Date(Date.now() - 2 * 3_600_000).toISOString(),
         available_this_week: true,
         next_availability_date: null,
         engagement: {
@@ -40,6 +40,33 @@ const FIXTURES: Record<string, MatchResponse> = {
           funnel_stage: 'Active placement',
           response_rate: 0.85,
         },
+        recent_notes: [
+          {
+            text: 'Spoke with James — available for night shifts from next week. Prefers temp-to-perm roles. Has own PPE and is ADR trained.',
+            created_at: new Date(Date.now() - 2 * 3_600_000).toISOString(), // 2 hours ago — fresh
+            author: 'Sarah Connor',
+          },
+          {
+            text: 'Called re: Wincanton contract. Interested but wants weekday-only shifts. Will confirm by Friday.',
+            created_at: '2026-07-10T14:00:00Z',
+            author: 'Alex Morgan',
+          },
+          {
+            text: 'Initial registration — C+E licence verified, ADR certificate on file.',
+            created_at: '2024-03-12T09:00:00Z',
+            author: 'Sarah Connor',
+          },
+        ],
+        next_booking: {
+          date: new Date(Date.now() + 3 * 86_400_000).toISOString(), // 3 days from now
+          client_name: 'XPO Logistics',
+          status: 'approved',
+        },
+        recent_booking_count_90d: 8,
+        open_tasks: [
+          { title: 'Chase CPC renewal', due_date: new Date(Date.now() + 5 * 86_400_000).toISOString(), owner: 'Sarah Connor', overdue: false },
+          { title: 'Update emergency contact', due_date: new Date(Date.now() - 2 * 86_400_000).toISOString(), owner: 'Alex Morgan', overdue: true },
+        ],
         phone_number: '+447712345678',
         postcode: 'CB10 1SA',
       },

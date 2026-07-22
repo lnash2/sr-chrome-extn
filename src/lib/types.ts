@@ -28,6 +28,13 @@ export interface Engagement {
   response_rate: number;
 }
 
+export interface OpenTask {
+  title: string;
+  due_date: string | null;
+  owner: string | null;
+  overdue: boolean;
+}
+
 export interface CandidateMatch {
   candidate_id: number;
   confidence: 'exact_phone' | 'exact_email' | 'fuzzy_name_postcode' | 'name_location';
@@ -55,6 +62,11 @@ export interface CandidateMatch {
   available_this_week: boolean;
   next_availability_date: string | null;
   engagement: Engagement | null;
+
+  recent_notes?: LastNote[];
+  next_booking?: LastBooking | null;
+  recent_booking_count_90d?: number;
+  open_tasks?: OpenTask[];
 
   phone_number: string;
   postcode: string | null;

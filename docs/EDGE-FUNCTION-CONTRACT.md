@@ -76,6 +76,15 @@ Content-Type: application/json
         "response_rate": 0.0
       },
 
+      "recent_notes": [
+        { "text": "string (truncate 200 chars)", "created_at": "ISO", "author": "string | null" }
+      ],
+      "next_booking": { "date": "ISO", "client_name": "string | null", "status": "string" },
+      "recent_booking_count_90d": 0,
+      "open_tasks": [
+        { "title": "string", "due_date": "ISO | null", "owner": "string | null", "overdue": false }
+      ],
+
       "phone_number": "+447123456789",
       "postcode": "M1 1AA"
     }
@@ -86,7 +95,7 @@ Content-Type: application/json
 }
 ```
 
-All fields except `candidate_id`, `confidence`, `name`, `active_status`, and `phone_number` are nullable. The panel must render gracefully with any subset present.
+All fields except `candidate_id`, `confidence`, `name`, `active_status`, and `phone_number` are nullable or optional. New v1.1 fields (`recent_notes`, `next_booking`, `recent_booking_count_90d`, `open_tasks`) are additive — absent from older responses; the panel renders gracefully with any subset present.
 
 ### Matching precedence (tiered, exclusive)
 

@@ -1,4 +1,4 @@
-import type { BackgroundResponse, CandidateMatch, LicenceCategory, LookupRequest } from '@/lib/types';
+import type { BackgroundResponse, CandidateMatch, LicenceCategory, LookupRequest, LastNote } from '@/lib/types';
 import { normalisePhoneE164 } from '@/lib/phoneNormalise';
 
 // ---------------------------------------------------------------------------
@@ -36,6 +36,8 @@ const ICONS = {
   logIn:         '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/>',
   x:             '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   userPlus:      '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
+  clipboardList: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
+  calendarCheck: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
 } as const;
 
 function icon(name: keyof typeof ICONS, cls = ''): string {
@@ -542,6 +544,88 @@ const BAR_CSS = /* css */ `
   font-size: 11px;
   color: #94A3B8;
 }
+.sr-note-popover-divider {
+  border: none;
+  border-top: 1px solid #E5E7EB;
+  margin: 8px 0;
+}
+.sr-note-popover-entry + .sr-note-popover-entry {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #F1F5F9;
+}
+.sr-note-popover-footer {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #E5E7EB;
+}
+.sr-note-popover-footer a {
+  font-size: 11px;
+  font-weight: 500;
+  color: #0891B2;
+  text-decoration: none;
+}
+.sr-note-popover-footer a:hover { text-decoration: underline; }
+
+/* ===== Fresh note dot ===== */
+.sr-note-btn-wrap { position: relative; display: inline-flex; }
+.sr-fresh-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0891B2;
+}
+
+/* ===== Booked chip (next booking, teal) ===== */
+.sr-chip--booked {
+  background: #D1FAE5;
+  border-color: #A7F3D0;
+  color: #065F46;
+}
+
+/* ===== Task chip ===== */
+.sr-chip--tasks-overdue {
+  background: #FEF3C7;
+  border-color: #FDE68A;
+  color: #92400E;
+  cursor: pointer;
+}
+.sr-chip--tasks {
+  cursor: pointer;
+}
+
+/* ===== Task popover ===== */
+.sr-task-anchor { position: relative; }
+.sr-task-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 300px;
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
+  padding: 12px;
+  z-index: 10;
+  pointer-events: auto;
+}
+.sr-task-item {
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.5;
+  padding: 4px 0;
+}
+.sr-task-item + .sr-task-item {
+  border-top: 1px solid #F1F5F9;
+  margin-top: 4px;
+  padding-top: 8px;
+}
+.sr-task-title { font-weight: 500; }
+.sr-task-meta { font-size: 11px; color: #94A3B8; margin-top: 2px; }
+.sr-task-overdue { color: #991B1B; font-weight: 500; }
 `;
 
 // ---------------------------------------------------------------------------
@@ -571,6 +655,31 @@ function licenceChips(cats: LicenceCategory[]): string {
   }).join('');
 }
 
+function taskChip(m: CandidateMatch): string {
+  const tasks = m.open_tasks;
+  if (!tasks || tasks.length === 0) return '';
+  const hasOverdue = tasks.some((t) => t.overdue);
+  const cls = hasOverdue ? 'sr-chip--tasks-overdue' : 'sr-chip--tasks';
+  const count = tasks.length;
+  return `<span class="sr-task-anchor"><span class="sr-chip ${cls}" data-task-toggle>${icon('clipboardList', 'sr-icon-xs')} ${count} open task${count !== 1 ? 's' : ''}</span>
+    <div class="sr-task-popover" hidden data-task-popover>
+      ${tasks.map((t) => {
+        const dueText = t.due_date
+          ? (t.overdue
+            ? `<span class="sr-task-overdue">overdue ${relativeDate(t.due_date).replace(' ago', '')}</span>`
+            : `due ${relativeDate(t.due_date)}`)
+          : '';
+        const ownerText = t.owner ? esc(t.owner) : '';
+        const metaParts = [ownerText, dueText].filter(Boolean).join('<span class="sr-meta-sep">&middot;</span>');
+        return `<div class="sr-task-item" data-task>
+          <div class="sr-task-title">${esc(t.title)}</div>
+          ${metaParts ? `<div class="sr-task-meta">${metaParts}</div>` : ''}
+        </div>`;
+      }).join('')}
+    </div>
+  </span>`;
+}
+
 function summaryChips(m: CandidateMatch): string {
   const out: string[] = [];
 
@@ -584,6 +693,15 @@ function summaryChips(m: CandidateMatch): string {
   for (const jc of m.job_categories)
     out.push(`<span class="sr-chip">${icon('briefcase', 'sr-icon-xs')} ${esc(jc)}</span>`);
 
+  // Next booking — prominent, before last booking
+  if (m.next_booking) {
+    const nb = m.next_booking;
+    const lbl = nb.client_name
+      ? `Booked ${relativeDate(nb.date)} · ${esc(nb.client_name)}`
+      : `Booked ${relativeDate(nb.date)}`;
+    out.push(`<span class="sr-chip sr-chip--booked" title="${esc(nb.date.slice(0, 10))}" data-next-booking>${icon('calendarCheck', 'sr-icon-xs')} ${lbl}</span>`);
+  }
+
   if (m.last_booking) {
     const lbl = m.last_booking.client_name
       ? `${relativeDate(m.last_booking.date)} · ${esc(m.last_booking.client_name)}`
@@ -591,7 +709,10 @@ function summaryChips(m: CandidateMatch): string {
     out.push(`<span class="sr-chip" title="${esc(m.last_booking.date.slice(0, 10))}">${icon('calendar', 'sr-icon-xs')} ${lbl}</span>`);
   }
 
-  if (m.company_booking_count > 0 || m.agency_booking_count > 0) {
+  // 90d booking count (replaces lifetime counts when present)
+  if (m.recent_booking_count_90d != null && m.recent_booking_count_90d > 0) {
+    out.push(`<span class="sr-chip" data-booking-90d>${m.recent_booking_count_90d} shift${m.recent_booking_count_90d !== 1 ? 's' : ''} · 90d</span>`);
+  } else if (m.company_booking_count > 0 || m.agency_booking_count > 0) {
     const parts: string[] = [];
     if (m.company_booking_count > 0) parts.push(`${m.company_booking_count} co.`);
     if (m.agency_booking_count > 0) parts.push(`${m.agency_booking_count} ag.`);
@@ -606,6 +727,9 @@ function summaryChips(m: CandidateMatch): string {
     const cls = h === 'hot' ? 'sr-chip--hot' : h === 'warm' ? 'sr-chip--warm' : h === 'cold' ? 'sr-chip--cold' : '';
     out.push(`<span class="sr-chip ${cls}" data-health="${esc(h)}">${esc(m.engagement.health)}</span>`);
   }
+
+  // Task chip (with popover attached)
+  out.push(taskChip(m));
 
   return out.join('');
 }
@@ -646,16 +770,46 @@ function warningText(m: CandidateMatch): string {
 // Single-match row
 // ---------------------------------------------------------------------------
 
+export function isFreshNote(note: LastNote): boolean {
+  const then = new Date(note.created_at).getTime();
+  if (isNaN(then)) return false;
+  return Date.now() - then < 24 * 3_600_000;
+}
+
+function renderNoteEntry(note: LastNote): string {
+  return `<div class="sr-note-popover-entry">
+    <div class="sr-note-popover-text">${esc(note.text)}</div>
+    <div class="sr-note-popover-meta">
+      ${note.author ? esc(note.author) : ''}${note.author && note.created_at ? '<span class="sr-meta-sep">&middot;</span>' : ''}${note.created_at ? `<span title="${esc(note.created_at.slice(0, 10))}">${relativeDate(note.created_at)}</span>` : ''}
+    </div>
+  </div>`;
+}
+
 function noteButton(m: CandidateMatch): string {
-  if (!m.last_note) return '';
+  // Build notes list: prefer recent_notes, fall back to last_note as single entry
+  const notes: LastNote[] = m.recent_notes && m.recent_notes.length > 0
+    ? m.recent_notes
+    : m.last_note ? [m.last_note] : [];
+
+  if (notes.length === 0) return '';
+
+  const freshDot = isFreshNote(notes[0])
+    ? `<span class="sr-fresh-dot" data-fresh-dot title="Note added ${relativeDate(notes[0].created_at)}"></span>` : '';
+
+  const deepLink = `https://portal.swift-recruit.co.uk/swift/candidates/${m.candidate_id}`;
+  const notesHtml = notes.map(renderNoteEntry).join('');
+
   return `<span class="sr-note-anchor">
-    <button class="sr-btn sr-btn--secondary" type="button" data-note-toggle>
-      ${icon('stickyNote', 'sr-icon-sm')} Note
-    </button>
+    <span class="sr-note-btn-wrap">
+      <button class="sr-btn sr-btn--secondary" type="button" data-note-toggle>
+        ${icon('stickyNote', 'sr-icon-sm')} Note
+      </button>
+      ${freshDot}
+    </span>
     <div class="sr-note-popover" hidden data-note-popover>
-      <div class="sr-note-popover-text">${esc(m.last_note.text)}</div>
-      <div class="sr-note-popover-meta">
-        ${m.last_note.author ? esc(m.last_note.author) : ''}${m.last_note.author && m.last_note.created_at ? '<span class="sr-meta-sep">&middot;</span>' : ''}${m.last_note.created_at ? `<span title="${esc(m.last_note.created_at.slice(0, 10))}">${relativeDate(m.last_note.created_at)}</span>` : ''}
+      ${notesHtml}
+      <div class="sr-note-popover-footer">
+        <a href="${esc(deepLink)}" target="_blank" rel="noopener">View all notes in CRM</a>
       </div>
     </div>
   </span>`;
@@ -667,7 +821,7 @@ function phoneNotOnFileNote(scraped: LookupRequest, matches: CandidateMatch[]): 
 }
 
 function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: CandidateMatch[]): string {
-  const deepLink = `https://portal.swift-recruit.com/swift/candidates/${m.candidate_id}`;
+  const deepLink = `https://portal.swift-recruit.co.uk/swift/candidates/${m.candidate_id}`;
   const suggestion = isSuggestion(m.confidence);
   const caveat = suggestion
     ? `<span class="sr-caveat" data-caveat>verify phone before contacting</span>` : '';
@@ -875,11 +1029,23 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
     });
   });
 
-  // Close note popover on outside click
+  // Task popover toggle
+  root.querySelectorAll<HTMLElement>('[data-task-toggle]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const popover = btn.parentElement?.querySelector('[data-task-popover]') as HTMLElement | null;
+      if (popover) popover.hidden = !popover.hidden;
+    });
+  });
+
+  // Close popovers on outside click
   root.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
     if (!target.closest?.('[data-note-anchor]') && !target.closest?.('[data-note-toggle]')) {
       root.querySelectorAll<HTMLElement>('[data-note-popover]').forEach((p) => { p.hidden = true; });
+    }
+    if (!target.closest?.('[data-task-anchor]') && !target.closest?.('[data-task-toggle]')) {
+      root.querySelectorAll<HTMLElement>('[data-task-popover]').forEach((p) => { p.hidden = true; });
     }
   });
 
