@@ -266,6 +266,85 @@ const FIXTURES: Record<string, MatchResponse> = {
     metadata: { duration_ms: 10 },
   },
 
+  suggestion: {
+    matches: [
+      {
+        candidate_id: 70001,
+        confidence: 'name_location',
+        name: 'James Whitfield',
+        active_status: 'active',
+        registered_at: '2024-03-12T00:00:00Z',
+        recruiter_name: 'Sarah Connor',
+        resourcer_name: null,
+        marked_unsuitable: false,
+        unsuitable_reason: null,
+        marked_for_deletion: false,
+        licence_categories: [
+          { category: 'C+E', expiry_date: '2028-11-20' },
+        ],
+        licence_points: 0,
+        job_categories: ['HGV Class 1'],
+        last_booking: {
+          date: '2026-06-10T00:00:00Z',
+          client_name: 'DHL Supply Chain',
+          status: 'approved',
+        },
+        company_booking_count: 14,
+        agency_booking_count: 3,
+        last_note: null,
+        last_contact_date: '2026-06-10T00:00:00Z',
+        available_this_week: true,
+        next_availability_date: null,
+        engagement: { health: 'Warm', funnel_stage: 'Active placement', response_rate: 0.85 },
+        phone_number: '+447712345678',
+        postcode: 'CB10 1SA',
+      },
+    ],
+    metadata: { duration_ms: 55 },
+  },
+
+  phone_not_on_file: {
+    matches: [
+      {
+        candidate_id: 80001,
+        confidence: 'exact_email',
+        name: 'Tony Lynn',
+        active_status: 'active',
+        registered_at: '2025-05-20T00:00:00Z',
+        recruiter_name: 'Tom Bradley',
+        resourcer_name: null,
+        marked_unsuitable: false,
+        unsuitable_reason: null,
+        marked_for_deletion: false,
+        licence_categories: [
+          { category: 'C', expiry_date: '2027-09-01' },
+          { category: 'C+E', expiry_date: '2027-09-01' },
+        ],
+        licence_points: 0,
+        job_categories: ['HGV Class 1', 'Container Work'],
+        last_booking: {
+          date: '2026-05-15T00:00:00Z',
+          client_name: 'Maritime Transport',
+          status: 'approved',
+        },
+        company_booking_count: 7,
+        agency_booking_count: 2,
+        last_note: {
+          text: 'Good driver, prefers container port work. Available weekdays only.',
+          created_at: '2026-05-16T09:00:00Z',
+          author: 'Tom Bradley',
+        },
+        last_contact_date: '2026-05-16T09:00:00Z',
+        available_this_week: true,
+        next_availability_date: null,
+        engagement: { health: 'Warm', funnel_stage: 'Active placement', response_rate: 0.78 },
+        phone_number: '+447700900444',
+        postcode: 'CO7 8PQ',
+      },
+    ],
+    metadata: { duration_ms: 30 },
+  },
+
   no_match: {
     matches: [],
     metadata: { duration_ms: 32 },
@@ -273,13 +352,24 @@ const FIXTURES: Record<string, MatchResponse> = {
 };
 
 function pickFixture(req: LookupRequest): MatchResponse {
+  // Special-case fixtures (trigger via specific phone substrings)
   if (req.phone?.includes('900222')) return FIXTURES.deletion_flagged;
   if (req.phone?.includes('900111')) return FIXTURES.unsuitable;
   if (req.phone?.includes('900333')) return FIXTURES.sparse;
   if (req.email?.includes('notfound')) return FIXTURES.no_match;
-  if (req.name && req.location && !req.phone && !req.email) return FIXTURES.multiple;
+
+  // Tiered precedence: phone → email → name+location
+  // Phone first (highest confidence)
+  if (req.phone) {
+    // Simulate phone-not-on-file: phone sent but only email matched
+    if (req.email?.includes('phonemissing')) return FIXTURES.phone_not_on_file;
+    return FIXTURES.single_phone;
+  }
+  // Email second (only when no phone)
   if (req.email) return FIXTURES.single_email;
-  if (req.phone) return FIXTURES.single_phone;
+  // Name+location last (suggestion tier only)
+  if (req.name && req.location) return FIXTURES.suggestion;
+
   return FIXTURES.no_match;
 }
 

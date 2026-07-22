@@ -1,4 +1,5 @@
-import type { BackgroundResponse, CandidateMatch, LicenceCategory } from '@/lib/types';
+import type { BackgroundResponse, CandidateMatch, LicenceCategory, LookupRequest } from '@/lib/types';
+import { normalisePhoneE164 } from '@/lib/phoneNormalise';
 
 // ---------------------------------------------------------------------------
 // Panel state type
@@ -7,8 +8,8 @@ import type { BackgroundResponse, CandidateMatch, LicenceCategory } from '@/lib/
 export type PanelState =
   | { status: 'idle' }
   | { status: 'searching' }
-  | { status: 'match'; data: BackgroundResponse & { ok: true } }
-  | { status: 'no-match' }
+  | { status: 'match'; data: BackgroundResponse & { ok: true }; scraped: LookupRequest }
+  | { status: 'no-match'; scraped: LookupRequest }
   | { status: 'error'; error: string }
   | { status: 'logged-out' };
 
@@ -34,6 +35,7 @@ const ICONS = {
   search:        '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
   logIn:         '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/>',
   x:             '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  userPlus:      '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
 } as const;
 
 function icon(name: keyof typeof ICONS, cls = ''): string {
@@ -86,24 +88,25 @@ export function licenceStatus(cat: LicenceCategory): LicenceStatus {
 }
 
 // ---------------------------------------------------------------------------
-// Confidence helpers
+// Confidence / tier helpers
 // ---------------------------------------------------------------------------
 
 const CONFIDENCE_ORDER: Record<string, number> = {
   exact_phone: 0, exact_email: 1, fuzzy_name_postcode: 2, name_location: 3,
 };
 
-function confidenceBadgeClass(c: CandidateMatch['confidence']): string {
-  if (c === 'exact_phone' || c === 'exact_email') return 'sr-badge--confirmed';
-  return 'sr-badge--pending';
+export function isConfirmed(c: CandidateMatch['confidence']): boolean {
+  return c === 'exact_phone' || c === 'exact_email';
 }
 
-function confidenceLabel(c: CandidateMatch['confidence']): string {
-  const m: Record<string, string> = {
-    exact_phone: 'Phone', exact_email: 'Email',
-    fuzzy_name_postcode: 'Fuzzy', name_location: 'Name + location',
-  };
-  return m[c] ?? c;
+export function isSuggestion(c: CandidateMatch['confidence']): boolean {
+  return c === 'fuzzy_name_postcode' || c === 'name_location';
+}
+
+/** Phone was scraped but match came back on email only */
+export function isPhoneNotOnFile(scraped: LookupRequest, matches: CandidateMatch[]): boolean {
+  if (!scraped.phone) return false;
+  return matches.length > 0 && matches.every((m) => m.confidence === 'exact_email');
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +202,67 @@ const BAR_CSS = /* css */ `
   background: #FEE2E2;
   border-bottom-color: #FECACA;
 }
+
+/* ===== Suggestion (unconfirmed) tint ===== */
+.sr-bar--suggestion {
+  background: #FFFBEB;
+  border-bottom-color: #FDE68A;
+}
+
+/* ===== Not-in-CRM strip ===== */
+.sr-bar--not-in-crm {
+  background: #F1F5F9;
+  border-bottom-color: #E2E8F0;
+}
+.sr-bar--not-in-crm .sr-state-msg {
+  color: #0F172A;
+  font-weight: 600;
+  font-size: 13px;
+}
+.sr-bar--not-in-crm .sr-state-sub {
+  font-size: 11px;
+  color: #64748B;
+  font-weight: 500;
+}
+
+/* ===== Phone-not-on-file amber note ===== */
+.sr-phone-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #92400E;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ===== Suggestion badge ===== */
+.sr-badge--suggestion {
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #FDE68A;
+  font-weight: 600;
+}
+.sr-badge--suggestion .sr-badge-dot { background: #92400E; }
+
+/* ===== Amber CRM button for suggestions ===== */
+.sr-btn--amber {
+  background: #FEF3C7; color: #92400E;
+  border: 1px solid #FDE68A;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.sr-btn--amber:hover { background: #FDE68A; }
+
+/* ===== Confirmed badge ===== */
+.sr-badge--in-crm {
+  background: #D1FAE5; color: #065F46; border-color: #A7F3D0;
+}
+.sr-badge--in-crm .sr-badge-dot { background: #065F46; }
 
 /* ===== Row layout ===== */
 .sr-row {
@@ -490,7 +554,12 @@ function statusBadge(s: CandidateMatch['active_status']): string {
 }
 
 function confBadge(c: CandidateMatch['confidence']): string {
-  return `<span class="sr-badge ${confidenceBadgeClass(c)}"><span class="sr-badge-dot"></span>${confidenceLabel(c)}</span>`;
+  if (isConfirmed(c)) {
+    const verifiedLabel = c === 'exact_phone' ? 'phone verified' : 'email verified';
+    return `<span class="sr-badge sr-badge--in-crm" data-conf-tier="confirmed"><span class="sr-badge-dot"></span>In CRM ✓</span>
+      <span class="sr-badge sr-badge--confirmed" data-conf-detail><span class="sr-badge-dot"></span>${verifiedLabel}</span>`;
+  }
+  return `<span class="sr-badge sr-badge--suggestion" data-conf-tier="suggestion"><span class="sr-badge-dot"></span>Possible match — NOT confirmed</span>`;
 }
 
 function licenceChips(cats: LicenceCategory[]): string {
@@ -592,10 +661,19 @@ function noteButton(m: CandidateMatch): string {
   </span>`;
 }
 
-function singleMatchRow(m: CandidateMatch): string {
+function phoneNotOnFileNote(scraped: LookupRequest, matches: CandidateMatch[]): string {
+  if (!isPhoneNotOnFile(scraped, matches)) return '';
+  return `<span class="sr-phone-note" data-phone-note>${icon('phone', 'sr-icon-xs')} Phone not on file — matched by email</span>`;
+}
+
+function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: CandidateMatch[]): string {
   const deepLink = `https://portal.swift-recruit.com/swift/candidates/${m.candidate_id}`;
-  const caveat = m.confidence === 'name_location'
+  const suggestion = isSuggestion(m.confidence);
+  const caveat = suggestion
     ? `<span class="sr-caveat" data-caveat>verify phone before contacting</span>` : '';
+
+  const crmBtnClass = suggestion ? 'sr-btn--amber' : 'sr-btn--primary';
+  const crmBtnLabel = suggestion ? 'Review possible match' : 'Open in CRM';
 
   return `
     <div class="sr-row" data-candidate-id="${m.candidate_id}">
@@ -606,12 +684,13 @@ function singleMatchRow(m: CandidateMatch): string {
       ${statusBadge(m.active_status)}
       ${confBadge(m.confidence)}
       ${caveat}
+      ${phoneNotOnFileNote(scraped, allMatches)}
       ${summaryChips(m)}
       ${metaText(m)}
       <span class="sr-row-right">
         ${noteButton(m)}
-        <a class="sr-btn sr-btn--primary" href="${esc(deepLink)}" target="_blank" rel="noopener" data-deeplink>
-          ${icon('externalLink', 'sr-icon-sm')} Open in CRM
+        <a class="sr-btn ${crmBtnClass}" href="${esc(deepLink)}" target="_blank" rel="noopener" data-deeplink>
+          ${icon('externalLink', 'sr-icon-sm')} ${crmBtnLabel}
         </a>
         <button class="sr-btn sr-btn--secondary" type="button" data-copy-phone="${esc(m.phone_number)}">
           ${icon('copy', 'sr-icon-sm')} ${esc(m.phone_number)}
@@ -632,13 +711,15 @@ function collapsedStrip(state: PanelState & { status: 'match' }): string {
   const matches = state.data.data.matches;
   const m = matches[0];
   const count = matches.length;
+  const confirmed = matches.some((m) => isConfirmed(m.confidence));
+  const countBadgeCls = confirmed ? 'sr-badge--in-crm' : 'sr-badge--suggestion';
   return `
     <div class="sr-row">
       <span class="sr-brand"><span class="sr-teal-dot"></span>Swift Recruit</span>
       <span class="sr-sep"></span>
       <span class="sr-name">${esc(m.name)}</span>
       ${statusBadge(m.active_status)}
-      <span class="sr-badge sr-badge--confirmed"><span class="sr-badge-dot"></span>${count} match${count !== 1 ? 'es' : ''}</span>
+      <span class="sr-badge ${countBadgeCls}"><span class="sr-badge-dot"></span>${count} match${count !== 1 ? 'es' : ''}</span>
       <span class="sr-row-right">
         <button class="sr-collapse-btn" type="button" data-collapse>
           ${icon('chevronDown', 'sr-icon-sm')}
@@ -652,22 +733,22 @@ function collapsedStrip(state: PanelState & { status: 'match' }): string {
 // Multi-match bar
 // ---------------------------------------------------------------------------
 
-function multiMatchBar(matches: CandidateMatch[]): string {
+function multiMatchBar(matches: CandidateMatch[], scraped: LookupRequest): string {
   const sorted = [...matches].sort((a, b) =>
     (CONFIDENCE_ORDER[a.confidence] ?? 9) - (CONFIDENCE_ORDER[b.confidence] ?? 9));
 
-  const hasNameLoc = sorted.some((m) => m.confidence === 'name_location');
+  const hasSuggestion = sorted.some((m) => isSuggestion(m.confidence));
   const pills = sorted.map((m, i) => {
     const cls = expandedPill === i ? 'sr-pill--expanded' : '';
     return `<span class="sr-pill ${cls}" data-pill-index="${i}" data-candidate-id="${m.candidate_id}">${esc(m.name)}</span>`;
   }).join('');
 
-  const caveat = hasNameLoc ? '<span class="sr-caveat" data-caveat>includes loose match — verify phone</span>' : '';
+  const caveat = hasSuggestion ? '<span class="sr-caveat" data-caveat>includes unconfirmed match — verify phone</span>' : '';
 
   let expandedRow = '';
   if (expandedPill !== null && sorted[expandedPill]) {
     const m = sorted[expandedPill];
-    expandedRow = `<div class="sr-expanded">${singleMatchRow(m)}</div>`;
+    expandedRow = `<div class="sr-expanded">${singleMatchRow(m, scraped, sorted)}</div>`;
   }
 
   return `
@@ -693,19 +774,21 @@ function multiMatchBar(matches: CandidateMatch[]): string {
 
 function renderMatch(state: PanelState & { status: 'match' }): string {
   const matches = state.data.data.matches;
-  const warnCls = matches.length === 1 ? warningBarClasses(matches[0]) : '';
+  const m0 = matches[0];
+  const warnCls = matches.length === 1 ? warningBarClasses(m0) : '';
+  const suggestionCls = matches.every((m) => isSuggestion(m.confidence)) ? 'sr-bar--suggestion' : '';
   const collapsedCls = collapsed ? 'sr-bar--collapsed' : '';
 
   let body: string;
   if (collapsed) {
     body = collapsedStrip(state);
   } else if (matches.length === 1) {
-    body = singleMatchRow(matches[0]);
+    body = singleMatchRow(m0, state.scraped, matches);
   } else {
-    body = multiMatchBar(matches);
+    body = multiMatchBar(matches, state.scraped);
   }
 
-  return `<div class="sr-bar ${warnCls} ${collapsedCls}" data-status="match">${body}</div>`;
+  return `<div class="sr-bar ${warnCls} ${suggestionCls} ${collapsedCls}" data-status="match">${body}</div>`;
 }
 
 function renderState(state: PanelState): string {
@@ -726,14 +809,20 @@ function renderState(state: PanelState): string {
     case 'match':
       return renderMatch(state);
 
-    case 'no-match':
-      return `<div class="sr-bar" data-status="no-match">
+    case 'no-match': {
+      const scrapedPhone = state.scraped.phone ? normalisePhoneE164(state.scraped.phone) : null;
+      const phoneDisplay = scrapedPhone
+        ? `<span class="sr-sep"></span><span class="sr-state-sub" data-scraped-phone>${icon('phone', 'sr-icon-xs')} Checked: ${esc(scrapedPhone)}</span>` : '';
+      return `<div class="sr-bar sr-bar--not-in-crm" data-status="no-match">
         <div class="sr-state-row">
           <span class="sr-brand"><span class="sr-teal-dot"></span>Swift Recruit</span>
           <span class="sr-sep"></span>
+          ${icon('userPlus', 'sr-icon-sm')}
           <span class="sr-state-msg">Not in Swift Recruit</span>
+          ${phoneDisplay}
         </div>
       </div>`;
+    }
 
     case 'error':
       return `<div class="sr-bar" data-status="error">

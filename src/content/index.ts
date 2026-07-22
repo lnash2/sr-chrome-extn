@@ -66,9 +66,9 @@ async function performLookup(payload: LookupRequest): Promise<void> {
   }
 
   if (response.data.matches.length === 0) {
-    setPanelState({ status: 'no-match' });
+    setPanelState({ status: 'no-match', scraped: payload });
   } else {
-    setPanelState({ status: 'match', data: response });
+    setPanelState({ status: 'match', data: response, scraped: payload });
   }
 }
 

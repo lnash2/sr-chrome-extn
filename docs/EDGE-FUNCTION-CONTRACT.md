@@ -88,14 +88,25 @@ Content-Type: application/json
 
 All fields except `candidate_id`, `confidence`, `name`, `active_status`, and `phone_number` are nullable. The panel must render gracefully with any subset present.
 
-### Match ordering
+### Matching precedence (tiered, exclusive)
 
-Matches are returned highest-confidence first:
+The edge function attempts match tiers in strict order and **returns only the highest tier that produces results** — weaker tiers are never mixed in:
 
-1. `exact_phone` — phone variation match against `candidates.phone_number`
-2. `exact_email` — case-insensitive email match against `candidates.email`
-3. `fuzzy_name_postcode` — surname `ILIKE` match + postcode district match (first part, e.g. `M1` from `M1 1AA`)
-4. `name_location` — surname `ILIKE` match + `addresses.city` case-insensitive trimmed match (lowest confidence; used when the scraped location is a town/city name rather than a postcode)
+1. **Phone tier** (`exact_phone`) — phone variation match against `candidates.phone_number`. If any phone match exists, return ONLY phone-tier results. Do not attempt email or name+location.
+2. **Email tier** (`exact_email`) — case-insensitive email match against `candidates.email`. Attempted only when phone tier produces zero results. If any email match exists, return ONLY email-tier results. Do not attempt name+location.
+3. **Suggestion tier** (`fuzzy_name_postcode` / `name_location`) — surname ILIKE + postcode district match, or surname ILIKE + city match. Attempted only when both phone and email tiers produce zero results. These are **unconfirmed suggestions**, not verified matches.
+
+Within a tier, matches are ordered highest-confidence first.
+
+The extension client classifies results into three certainty tiers for presentation:
+
+| Tier | Confidence values | Extension treatment |
+|------|-------------------|---------------------|
+| **CONFIRMED** | `exact_phone`, `exact_email` | Full match display — "In CRM" |
+| **UNCONFIRMED SUGGESTION** | `fuzzy_name_postcode`, `name_location` | Amber warning treatment — "Possible match — NOT confirmed" |
+| **NOT IN CRM** | (no matches) | Prominent "Not in Swift Recruit" strip |
+
+**Phone-not-on-file note:** When the request included a phone number but the match came back on email only (`exact_email`), the extension surfaces an amber note: "Phone not on file — matched by email". This alerts the recruiter that the CRM phone number may need updating.
 
 ### Deletion flag behaviour
 
