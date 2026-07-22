@@ -38,6 +38,7 @@ const ICONS = {
   userPlus:      '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/>',
   clipboardList: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
   calendarCheck: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+  clock:         '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
 } as const;
 
 function icon(name: keyof typeof ICONS, cls = ''): string {
@@ -562,53 +563,140 @@ const BAR_CSS = /* css */ `
   border-top: 1px solid #E5E7EB;
 }
 
-/* ===== Note popover ===== */
+/* ===== Notes panel (CRM-style feed) ===== */
 .sr-note-anchor { position: relative; }
-.sr-note-popover {
+.sr-note-panel {
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  width: 300px;
-  background: #FFFFFF;
+  width: 380px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: #FAFBFC;
   border: 1px solid #E5E7EB;
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.04);
-  padding: 12px;
   z-index: 10;
   pointer-events: auto;
+  overflow: hidden;
 }
-.sr-note-popover-text {
-  font-size: 12px;
-  color: #334155;
-  line-height: 1.5;
+.sr-note-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #E5E7EB;
+  font-size: 13px;
+  font-weight: 600;
+  color: #0F172A;
+  flex-shrink: 0;
+}
+.sr-note-panel-count {
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+}
+.sr-note-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+}
+.sr-note-panel-body::-webkit-scrollbar { width: 4px; }
+.sr-note-panel-body::-webkit-scrollbar-track { background: transparent; }
+.sr-note-panel-body::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 2px; }
+
+/* ===== Note card ===== */
+.sr-note-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.sr-note-card + .sr-note-card { margin-top: 8px; }
+.sr-note-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 6px;
 }
-.sr-note-popover-meta {
+.sr-note-card-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #0F172A;
+}
+.sr-note-card-time {
   font-size: 11px;
   color: #94A3B8;
 }
-.sr-note-popover-divider {
-  border: none;
+.sr-note-card-text {
+  font-size: 12px;
+  color: #334155;
+  line-height: 1.6;
+  white-space: pre-line;
+  word-break: break-word;
+}
+.sr-note-card-truncated::after {
+  content: '… ';
+}
+.sr-note-new-tag {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  color: #0891B2;
+  background: #ECFEFF;
+  border: 1px solid #CFFAFE;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 6px;
+  line-height: 1.6;
+}
+
+/* ===== Notes panel footer ===== */
+.sr-note-panel-footer {
+  padding: 10px 14px;
   border-top: 1px solid #E5E7EB;
-  margin: 8px 0;
+  background: #FFFFFF;
+  flex-shrink: 0;
 }
-.sr-note-popover-entry + .sr-note-popover-entry {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #F1F5F9;
-}
-.sr-note-popover-footer {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid #E5E7EB;
-}
-.sr-note-popover-footer a {
-  font-size: 11px;
+.sr-note-panel-footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
   font-weight: 500;
   color: #0891B2;
   text-decoration: none;
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid #CFFAFE;
+  background: #ECFEFF;
+  transition: all 0.15s ease;
 }
-.sr-note-popover-footer a:hover { text-decoration: underline; }
+.sr-note-panel-footer a:hover { background: #CFFAFE; }
+
+/* ===== Last contact (Row 1) ===== */
+.sr-last-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #64748B;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sr-last-contact .sr-icon { color: #94A3B8; }
+.sr-last-contact--stale {
+  color: #92400E;
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 1px 8px;
+}
+.sr-last-contact--stale .sr-icon { color: #92400E; }
 
 /* ===== Fresh note dot ===== */
 .sr-note-btn-wrap { position: relative; display: inline-flex; }
@@ -807,17 +895,22 @@ export function isFreshNote(note: LastNote): boolean {
   return Date.now() - then < 24 * 3_600_000;
 }
 
-function renderNoteEntry(note: LastNote): string {
-  return `<div class="sr-note-popover-entry">
-    <div class="sr-note-popover-text">${esc(note.text)}</div>
-    <div class="sr-note-popover-meta">
-      ${note.author ? esc(note.author) : ''}${note.author && note.created_at ? '<span class="sr-meta-sep">&middot;</span>' : ''}${note.created_at ? `<span title="${esc(note.created_at.slice(0, 10))}">${relativeDate(note.created_at)}</span>` : ''}
+function renderNoteCard(note: LastNote, idx: number): string {
+  const fresh = isFreshNote(note);
+  const newTag = fresh ? '<span class="sr-note-new-tag" data-note-new>New</span>' : '';
+  // If 200 chars exactly, likely truncated server-side
+  const truncCls = note.text.length >= 200 ? ' sr-note-card-truncated' : '';
+
+  return `<div class="sr-note-card" data-note-card="${idx}">
+    <div class="sr-note-card-header">
+      <span class="sr-note-card-author">${note.author ? esc(note.author) : 'Unknown'}${newTag}</span>
+      <span class="sr-note-card-time" title="${note.created_at ? esc(note.created_at.slice(0, 10)) : ''}">${note.created_at ? relativeDate(note.created_at) : ''}</span>
     </div>
+    <div class="sr-note-card-text${truncCls}">${esc(note.text)}</div>
   </div>`;
 }
 
 function noteButton(m: CandidateMatch): string {
-  // Build notes list: prefer recent_notes, fall back to last_note as single entry
   const notes: LastNote[] = m.recent_notes && m.recent_notes.length > 0
     ? m.recent_notes
     : m.last_note ? [m.last_note] : [];
@@ -828,19 +921,25 @@ function noteButton(m: CandidateMatch): string {
     ? `<span class="sr-fresh-dot" data-fresh-dot title="Note added ${relativeDate(notes[0].created_at)}"></span>` : '';
 
   const deepLink = `https://portal.swift-recruit.co.uk/swift/candidates/${m.candidate_id}`;
-  const notesHtml = notes.map(renderNoteEntry).join('');
+  const cardsHtml = notes.map((n, i) => renderNoteCard(n, i)).join('');
 
   return `<span class="sr-note-anchor">
     <span class="sr-note-btn-wrap">
       <button class="sr-btn sr-btn--secondary" type="button" data-note-toggle>
-        ${icon('stickyNote', 'sr-icon-sm')} Note
+        ${icon('stickyNote', 'sr-icon-sm')} Notes
       </button>
       ${freshDot}
     </span>
-    <div class="sr-note-popover" hidden data-note-popover>
-      ${notesHtml}
-      <div class="sr-note-popover-footer">
-        <a href="${esc(deepLink)}" target="_blank" rel="noopener">View all notes in CRM</a>
+    <div class="sr-note-panel" hidden data-note-popover>
+      <div class="sr-note-panel-header">
+        Notes
+        <span class="sr-note-panel-count">${notes.length} note${notes.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="sr-note-panel-body" data-note-body>
+        ${cardsHtml}
+      </div>
+      <div class="sr-note-panel-footer">
+        <a href="${esc(deepLink)}" target="_blank" rel="noopener">${icon('externalLink', 'sr-icon-xs')} View all notes in CRM</a>
       </div>
     </div>
   </span>`;
@@ -851,9 +950,14 @@ function phoneNotOnFileNote(scraped: LookupRequest, matches: CandidateMatch[]): 
   return `<span class="sr-phone-note" data-phone-note>${icon('phone', 'sr-icon-xs')} Phone not on file — matched by email</span>`;
 }
 
-function lastContactText(m: CandidateMatch): string {
-  if (!m.last_contact_date) return '';
-  return `<span title="${esc(m.last_contact_date.slice(0, 10))}">Last contact ${relativeDate(m.last_contact_date)}</span>`;
+function lastContactElement(m: CandidateMatch): string {
+  if (!m.last_contact_date) {
+    return `<span class="sr-last-contact sr-last-contact--stale" data-last-contact="stale">${icon('clock', 'sr-icon-xs')} No contact logged</span>`;
+  }
+  const then = new Date(m.last_contact_date).getTime();
+  const stale = !isNaN(then) && (Date.now() - then > 30 * 86_400_000);
+  const cls = stale ? ' sr-last-contact--stale' : '';
+  return `<span class="sr-last-contact${cls}" data-last-contact="${stale ? 'stale' : 'recent'}" title="${esc(m.last_contact_date.slice(0, 10))}">${icon('clock', 'sr-icon-xs')} Last contact ${relativeDate(m.last_contact_date)}</span>`;
 }
 
 function metaRow(m: CandidateMatch): string {
@@ -861,8 +965,6 @@ function metaRow(m: CandidateMatch): string {
   if (m.recruiter_name) parts.push(esc(m.recruiter_name));
   if (m.resourcer_name) parts.push(esc(m.resourcer_name));
   if (m.registered_at) parts.push(`Reg. <span title="${esc(m.registered_at.slice(0, 10))}">${relativeDate(m.registered_at)}</span>`);
-  const contact = lastContactText(m);
-  if (contact) parts.push(contact);
   if (parts.length === 0) return '';
   return `<div class="sr-row-3"><span class="sr-meta" data-meta-row>${parts.join('<span class="sr-meta-sep">&middot;</span>')}</span></div>`;
 }
@@ -887,6 +989,7 @@ function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: C
         <span class="sr-name">${esc(m.name)}</span>
         ${statusBadge(m.active_status)}
         ${confBadge(m.confidence)}
+        ${lastContactElement(m)}
         ${caveat}
         ${phoneNotOnFileNote(scraped, allMatches)}
         <span class="sr-row-right">

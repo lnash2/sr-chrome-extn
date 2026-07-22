@@ -39,6 +39,7 @@ async function handleLookup(payload: LookupRequest): Promise<BackgroundResponse>
     if (m0) {
       console.log('[SR Extension] Raw match fields:', {
         open_tasks: m0.open_tasks,
+        recent_notes_length: Array.isArray(m0.recent_notes) ? m0.recent_notes.length : m0.recent_notes,
         recent_notes: m0.recent_notes,
         next_booking: m0.next_booking,
         recent_booking_count_90d: m0.recent_booking_count_90d,

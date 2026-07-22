@@ -42,7 +42,7 @@ const FIXTURES: Record<string, MatchResponse> = {
         },
         recent_notes: [
           {
-            text: 'Spoke with James — available for night shifts from next week. Prefers temp-to-perm roles. Has own PPE and is ADR trained.',
+            text: '=== QUALIFYING CALL ===\n\n--- LICENCE & COMPLIANCE ---\nC+E valid until Nov 2028\nCPC current, ADR trained\nOwn PPE — steel toes + hi-vis\n\n--- AVAILABILITY ---\nAvailable for night shifts from next week\nPrefers temp-to-perm roles\nNo weekends\n\n--- NEXT STEPS ---\nSend Wincanton induction pack\nChase CPC renewal certificate',
             created_at: new Date(Date.now() - 2 * 3_600_000).toISOString(), // 2 hours ago — fresh
             author: 'Sarah Connor',
           },
