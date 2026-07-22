@@ -161,6 +161,95 @@ describe('scrapeCandidate — fallback strategies', () => {
   });
 });
 
+describe('scrapeCandidate — abutting text boundary handling', () => {
+  beforeEach(clearDom);
+
+  it('trims email when TLD abuts section heading: .co.ukPersonal → .co.uk', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="applicationTabContent">
+            saidhaval@hotmail.co.ukPersonal Profile
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.email).toBe('saidhaval@hotmail.co.uk');
+  });
+
+  it('trims email when .com abuts heading: x@y.comExperience → x@y.com', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="applicationTabContent">
+            x@y.comExperience
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.email).toBe('x@y.com');
+  });
+
+  it('still extracts clean email followed by whitespace', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="applicationTabContent">
+            driver@gmail.com for references
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.email).toBe('driver@gmail.com');
+  });
+
+  it('still extracts .co.uk email followed by whitespace', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="applicationTabContent">
+            test@domain.co.uk is my email
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.email).toBe('test@domain.co.uk');
+  });
+
+  it('phone regex does not over-capture into a longer digit string', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="applicationTabContent">
+            REF: 077123456789999
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    // Should NOT extract a phone from a 15-digit reference number
+    expect(result.phone).toBeNull();
+  });
+
+  it('phone regex still extracts valid UK mobile followed by text', () => {
+    document.body.innerHTML = `
+      <div data-testid="candidate-review-page">
+        <div id="candidateProfileContainer">
+          <div data-testid="applicationTabContent">
+            Call me on 07999 888777 anytime
+          </div>
+        </div>
+      </div>
+    `;
+    const result = scrapeCandidate();
+    expect(result.phone).toBe('07999 888777');
+  });
+});
+
 describe('canTriggerLookup', () => {
   it('triggers on phone alone', () => {
     expect(canTriggerLookup({ name: null, email: null, phone: '07712345678', location: null, cvSnippet: null })).toBe(true);

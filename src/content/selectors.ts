@@ -13,8 +13,8 @@ interface Strategy {
 
 // --- Regex patterns (used as fallbacks) ---
 
-const UK_PHONE_RE = /(?:\+44\s?|0)(?:\d[\s\-]?){9,10}\d/;
-const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+const UK_PHONE_RE = /(?:\+44\s?|0)(?:\d[\s\-]?){9,10}\d(?!\d)/;
+const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,6}(?=[^a-zA-Z]|[A-Z]|$)/;
 const UK_POSTCODE_RE = /\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i;
 
 // --- Helpers ---

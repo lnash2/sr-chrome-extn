@@ -1,24 +1,18 @@
 import type { LookupRequest, BackgroundResponse } from '@/lib/types';
 import { scrapeCandidate, canTriggerLookup, isOnCandidatePage } from './scraper';
 import type { ScrapeResult } from './selectors';
+import { renderPanel, type PanelState } from './panel';
 
 console.log('[SR Extension] Content script loaded on', window.location.href);
 
-// --- Panel state (Phase 4 UI will subscribe) ---
-
-type PanelState =
-  | { status: 'idle' }
-  | { status: 'searching' }
-  | { status: 'match'; data: BackgroundResponse & { ok: true } }
-  | { status: 'no-match' }
-  | { status: 'error'; error: string }
-  | { status: 'logged-out' };
+// --- Panel state ---
 
 let currentState: PanelState = { status: 'idle' };
 
 function setPanelState(state: PanelState) {
   currentState = state;
   console.log('[SR Extension] Panel state →', state.status, state);
+  renderPanel(state);
 }
 
 export function getPanelState(): PanelState {
