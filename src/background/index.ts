@@ -1,11 +1,33 @@
+import { supabase } from '@/lib/supabaseClient';
 import { mockCandidateMatch } from '@/lib/mockApi';
+import { liveCandidateMatch } from '@/lib/liveApi';
 import type { LookupRequest, BackgroundResponse } from '@/lib/types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
-chrome.runtime.onInstalled.addListener(() => {
-  console.log('[SR Extension] Background service worker installed');
+// ---------------------------------------------------------------------------
+// Session management
+// ---------------------------------------------------------------------------
+
+/** Current access token — kept in sync by onAuthStateChange */
+let accessToken: string | null = null;
+
+async function initSession(): Promise<void> {
+  // Restore persisted session from chrome.storage.local
+  const { data: { session } } = await supabase.auth.getSession();
+  accessToken = session?.access_token ?? null;
+  console.log('[SR Extension] Session restored:', accessToken ? 'authenticated' : 'no session');
+}
+
+// Listen for auth changes (login, logout, token refresh)
+supabase.auth.onAuthStateChange((_event, session) => {
+  accessToken = session?.access_token ?? null;
+  console.log('[SR Extension] Auth state changed:', _event, accessToken ? 'has token' : 'no token');
 });
+
+// ---------------------------------------------------------------------------
+// Lookup handler
+// ---------------------------------------------------------------------------
 
 async function handleLookup(payload: LookupRequest): Promise<BackgroundResponse> {
   const hasPhone = !!payload.phone;
@@ -21,9 +43,30 @@ async function handleLookup(payload: LookupRequest): Promise<BackgroundResponse>
     return { ok: true, data };
   }
 
-  // Phase 5: real edge function call will go here
-  return { ok: false, error: 'Live API not yet implemented — set VITE_USE_MOCK=true' };
+  // Live path
+  if (!accessToken) {
+    return { ok: false, error: 'NOT_AUTHENTICATED' };
+  }
+
+  const result = await liveCandidateMatch(payload, accessToken);
+
+  // 401 → clear session so content script shows logged-out bar
+  if (!result.ok && result.error === 'UNAUTHORIZED') {
+    await supabase.auth.signOut();
+    accessToken = null;
+    return { ok: false, error: 'NOT_AUTHENTICATED' };
+  }
+
+  return result;
 }
+
+// ---------------------------------------------------------------------------
+// Message listener
+// ---------------------------------------------------------------------------
+
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('[SR Extension] Background service worker installed');
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   console.log('[SR Extension] ← received:', message);
@@ -60,3 +103,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return true; // keep message channel open for async sendResponse
 });
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
+initSession();

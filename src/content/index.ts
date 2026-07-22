@@ -61,7 +61,11 @@ async function performLookup(payload: LookupRequest): Promise<void> {
   const response = await sendLookup(payload);
 
   if (!response.ok) {
-    setPanelState({ status: 'error', error: response.error });
+    if (response.error === 'NOT_AUTHENTICATED') {
+      setPanelState({ status: 'logged-out' });
+    } else {
+      setPanelState({ status: 'error', error: response.error });
+    }
     return;
   }
 

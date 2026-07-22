@@ -1,3 +1,5 @@
+import { supabase } from '@/lib/supabaseClient';
+
 document.addEventListener('DOMContentLoaded', () => {
   const loginSection = document.getElementById('login-section')!;
   const loggedInSection = document.getElementById('logged-in-section')!;
@@ -5,34 +7,58 @@ document.addEventListener('DOMContentLoaded', () => {
   const loginError = document.getElementById('login-error')!;
   const userEmail = document.getElementById('user-email')!;
   const logoutBtn = document.getElementById('logout-btn')!;
+  const loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
 
-  // Check stored session on open
-  chrome.storage.local.get(['sr_user_email'], (result) => {
-    if (result.sr_user_email) {
-      showLoggedIn(result.sr_user_email);
+  // --- Check existing session ---
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) showLoggedIn(session.user.email ?? session.user.id);
+  });
+
+  // --- React to auth changes (e.g. session refresh) ---
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) {
+      showLoggedIn(session.user.email ?? session.user.id);
+    } else {
+      showLoggedOut();
     }
   });
 
-  loginForm.addEventListener('submit', (e) => {
+  // --- Login ---
+  loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = (document.getElementById('email') as HTMLInputElement).value;
-    // Phase 1 stub — real auth in Phase 3
     loginError.hidden = true;
-    chrome.storage.local.set({ sr_user_email: email }, () => {
-      showLoggedIn(email);
-    });
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Logging in…';
+
+    const email = (document.getElementById('email') as HTMLInputElement).value;
+    const password = (document.getElementById('password') as HTMLInputElement).value;
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Log in';
+
+    if (error) {
+      loginError.textContent = error.message;
+      loginError.hidden = false;
+    }
+    // Success handled by onAuthStateChange
   });
 
-  logoutBtn.addEventListener('click', () => {
-    chrome.storage.local.remove(['sr_user_email'], () => {
-      loginSection.hidden = false;
-      loggedInSection.hidden = true;
-    });
+  // --- Logout ---
+  logoutBtn.addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    // onAuthStateChange handles UI update
   });
 
   function showLoggedIn(email: string) {
     userEmail.textContent = `Logged in as ${email}`;
     loginSection.hidden = true;
     loggedInSection.hidden = false;
+  }
+
+  function showLoggedOut() {
+    loginSection.hidden = false;
+    loggedInSection.hidden = true;
   }
 });
