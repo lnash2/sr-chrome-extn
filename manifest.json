@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "Matches Indeed candidate profiles against the Swift Recruit CRM.",
   "permissions": ["storage", "activeTab"],
-  "host_permissions": ["https://*.indeed.com/*"],
+  "host_permissions": ["https://*.indeed.com/*", "https://*.ringover.com/*"],
   "action": {
     "default_popup": "src/popup/index.html",
     "default_icon": {
@@ -24,7 +24,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.indeed.com/*"],
+      "matches": ["https://*.indeed.com/*", "https://*.ringover.com/*"],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle"
     }

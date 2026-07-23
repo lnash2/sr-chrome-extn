@@ -1240,6 +1240,14 @@ function renderState(state: PanelState): string {
       const phoneDisplay = scrapedPhone
         ? `<span class="sr-sep"></span><span class="sr-state-sub" data-scraped-phone>${icon('phone', 'sr-icon-xs')} Checked: ${esc(scrapedPhone)}</span>` : '';
       const scrapedName = state.scraped.name ? esc(state.scraped.name) : '';
+      const hasName = !!state.scraped.name;
+      const addBtn = hasName
+        ? `<button class="sr-btn sr-btn--primary" type="button" data-add-to-crm data-scraped-name="${scrapedName}">
+            ${icon('userPlus', 'sr-icon-sm')} Add to Swift Recruit
+          </button>`
+        : `<button class="sr-btn sr-btn--secondary" type="button" disabled title="No candidate name on this page — add from the CRM" data-add-disabled>
+            ${icon('userPlus', 'sr-icon-sm')} Add to Swift Recruit
+          </button>`;
       return `<div class="sr-bar sr-bar--not-in-crm" data-status="no-match">
         <div class="sr-state-row">
           <span class="sr-brand"><span class="sr-teal-dot"></span>Swift Recruit</span>
@@ -1248,9 +1256,7 @@ function renderState(state: PanelState): string {
           <span class="sr-state-msg">Not in Swift Recruit</span>
           ${phoneDisplay}
           <span class="sr-row-right">
-            <button class="sr-btn sr-btn--primary" type="button" data-add-to-crm data-scraped-name="${scrapedName}">
-              ${icon('userPlus', 'sr-icon-sm')} Add to Swift Recruit
-            </button>
+            ${addBtn}
           </span>
         </div>
       </div>`;

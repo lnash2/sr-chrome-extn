@@ -378,8 +378,8 @@ describe('tier helpers', () => {
 describe('Bar — Add to CRM button', () => {
   afterEach(() => destroyPanel());
 
-  it('renders in no-match state', () => {
-    renderPanel(noMatchState());
+  it('renders enabled when name scraped', () => {
+    renderPanel(noMatchState({ phone: '07712345678', email: null, name: 'Tony Lynn', location: null }));
     const btn = shadow().querySelector('[data-add-to-crm]');
     expect(btn).not.toBeNull();
     expect(btn!.textContent).toContain('Add to Swift Recruit');
@@ -412,8 +412,18 @@ describe('Bar — Add to CRM button', () => {
     vi.useRealTimers();
   });
 
+  it('disabled when no name scraped (Empower phone-only)', () => {
+    renderPanel(noMatchState({ phone: '01353648222', email: null, name: null, location: null }));
+    const btn = shadow().querySelector('[data-add-disabled]') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.disabled).toBe(true);
+    expect(btn.title).toContain('No candidate name');
+    // Active add button should NOT be present
+    expect(shadow().querySelector('[data-add-to-crm]')).toBeNull();
+  });
+
   it('setAddButtonState("added") shows "Added ✓"', () => {
-    renderPanel(noMatchState());
+    renderPanel(noMatchState({ phone: '07712345678', email: null, name: 'Tony', location: null }));
     setAddButtonState('added');
     const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
     expect(btn.textContent).toContain('Added');
@@ -421,7 +431,7 @@ describe('Bar — Add to CRM button', () => {
   });
 
   it('setAddButtonState("error") shows error message', () => {
-    renderPanel(noMatchState());
+    renderPanel(noMatchState({ phone: '07712345678', email: null, name: 'Tony', location: null }));
     setAddButtonState('error', 'Already in Swift Recruit');
     const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
     expect(btn.textContent).toContain('Already in Swift Recruit');
@@ -633,9 +643,15 @@ describe('scrapeCvText', () => {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
     const fixtureHtml = readFileSync(resolve(__dirname, '../../../fixtures/indeed-profile.html'), 'utf-8');
+    // Set hostname so site profile detection works
+    Object.defineProperty(window, 'location', {
+      value: { ...window.location, hostname: 'employers.indeed.com', pathname: '/' },
+      writable: true, configurable: true,
+    });
     document.documentElement.innerHTML = fixtureHtml;
 
-    const { scrapeCvText } = await import('../scraper');
+    const { scrapeCvText, isOnCandidatePage } = await import('../scraper');
+    isOnCandidatePage(); // activate the Indeed profile
     const cv = scrapeCvText();
     expect(cv).not.toBeNull();
     expect(cv!).toContain('HGV driver');

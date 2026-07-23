@@ -1,39 +1,48 @@
 import {
   type ScrapeResult,
+  type SiteProfile,
   runStrategies,
-  NAME_STRATEGIES,
-  LOCATION_STRATEGIES,
-  EMAIL_STRATEGIES,
-  PHONE_STRATEGIES,
-  CV_SNIPPET_STRATEGIES,
+  detectSiteProfile,
 } from './selectors';
 
-const CONTAINER_SELECTOR = '#candidateProfileContainer';
-const PAGE_DETECTOR = '[data-testid="candidate-review-page"]';
+let activeProfile: SiteProfile | null = null;
+
+export function getActiveProfile(): SiteProfile | null {
+  return activeProfile;
+}
 
 export function isOnCandidatePage(): boolean {
-  return document.querySelector(PAGE_DETECTOR) !== null;
+  activeProfile = detectSiteProfile();
+  if (!activeProfile) return false;
+  return activeProfile.isOnPage();
 }
 
 export function scrapeCandidate(): ScrapeResult {
-  const container = document.querySelector(CONTAINER_SELECTOR);
+  if (!activeProfile) {
+    return { name: null, email: null, phone: null, location: null, cvSnippet: null };
+  }
+
+  const container = activeProfile.getContainer();
   if (!container) {
     return { name: null, email: null, phone: null, location: null, cvSnippet: null };
   }
 
   return {
-    name: runStrategies(container, NAME_STRATEGIES),
-    email: runStrategies(container, EMAIL_STRATEGIES),
-    phone: runStrategies(container, PHONE_STRATEGIES),
-    location: runStrategies(container, LOCATION_STRATEGIES),
-    cvSnippet: runStrategies(container, CV_SNIPPET_STRATEGIES),
+    name: runStrategies(container, activeProfile.name),
+    email: runStrategies(container, activeProfile.email),
+    phone: runStrategies(container, activeProfile.phone),
+    location: runStrategies(container, activeProfile.location),
+    cvSnippet: runStrategies(container, activeProfile.cvSnippet),
   };
 }
 
 const CV_MAX_CHARS = 20_000;
 
 export function scrapeCvText(): string | null {
-  const container = document.querySelector('#candidateProfileContainer');
+  // Only Indeed has CV text
+  if (!activeProfile || activeProfile.id !== 'indeed') return null;
+
+  const container = activeProfile.getContainer();
   if (!container) return null;
 
   const section =
