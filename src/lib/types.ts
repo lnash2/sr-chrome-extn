@@ -85,3 +85,30 @@ export interface LookupMessage {
 export type BackgroundResponse =
   | { ok: true; data: MatchResponse }
   | { ok: false; error: string };
+
+// --- Create candidate ---
+
+export interface CreateRequest {
+  name: string;
+  phone: string | null;
+  email: string | null;
+  location: string | null;
+  cv_text: string | null;
+}
+
+export interface CreateResponse {
+  ok: true;
+  candidate_id: number;
+  created: true;
+  parsed: boolean;
+  warnings?: string[];
+}
+
+export interface DuplicateResponse {
+  error: 'duplicate';
+  existing: Array<{ candidate_id: number; name: string; confidence: string }>;
+}
+
+export type CreateBackgroundResponse =
+  | CreateResponse
+  | { ok: false; error: string; duplicate?: DuplicateResponse };

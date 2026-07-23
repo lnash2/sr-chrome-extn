@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
-import { mockCandidateMatch } from '@/lib/mockApi';
+import { mockCandidateMatch, mockCandidateCreate } from '@/lib/mockApi';
 import { liveCandidateMatch } from '@/lib/liveApi';
-import type { LookupRequest, BackgroundResponse } from '@/lib/types';
+import type { LookupRequest, BackgroundResponse, CreateRequest, CreateBackgroundResponse } from '@/lib/types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -54,6 +54,64 @@ async function handleLookup(payload: LookupRequest): Promise<BackgroundResponse>
   }
 
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Create candidate handler
+// ---------------------------------------------------------------------------
+
+const CREATE_TIMEOUT_MS = 20_000;
+
+async function handleCreateCandidate(payload: CreateRequest): Promise<CreateBackgroundResponse> {
+  if (USE_MOCK) {
+    return mockCandidateCreate(payload);
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return { ok: false, error: 'NOT_AUTHENTICATED' };
+  }
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/candidate-create-from-extension`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CREATE_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.status === 401) {
+      await supabase.auth.signOut();
+      return { ok: false, error: 'NOT_AUTHENTICATED' };
+    }
+
+    const body = await res.json();
+
+    if (res.status === 409) {
+      return { ok: false, error: 'duplicate', duplicate: body };
+    }
+
+    if (!res.ok) {
+      return { ok: false, error: body.error ?? `Create failed (${res.status})` };
+    }
+
+    return body as CreateBackgroundResponse;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { ok: false, error: 'Create timed out after 20s' };
+    }
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +178,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
       if (message?.type === 'CANDIDATE_LOOKUP') {
         response = await handleLookup(message.payload);
+      } else if (message?.type === 'CREATE_CANDIDATE') {
+        response = await handleCreateCandidate(message.payload) as BackgroundResponse;
       } else if (message?.type === 'INITIATE_CALL') {
         response = await handleInitiateCall(message.payload);
       } else if (message?.type === 'OPEN_SOFTPHONE') {

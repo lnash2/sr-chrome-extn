@@ -131,6 +131,10 @@ let collapsed = false;            // per-tab session state
 let currentMatches: CandidateMatch[] = [];
 let expandedPill: number | null = null; // index into currentMatches for multi-match
 
+/** Hook for the content script to handle "Add to CRM" clicks */
+export let onAddToCrm: (() => void) | null = null;
+export function setOnAddToCrm(handler: () => void): void { onAddToCrm = handler; }
+
 function getOrCreateHost(): HTMLElement {
   let host = document.getElementById(HOST_ID);
   if (!host) {
@@ -698,6 +702,26 @@ const BAR_CSS = /* css */ `
 }
 .sr-last-contact--stale .sr-icon { color: #92400E; }
 
+/* ===== Add to CRM button states ===== */
+.sr-btn--add-confirm {
+  background: #FEF3C7; color: #92400E;
+  border: 1px solid #FDE68A;
+}
+.sr-btn--add-confirm:hover { background: #FDE68A; }
+.sr-btn--adding {
+  background: #DBEAFE; color: #1E40AF;
+  border: 1px solid #BFDBFE;
+  cursor: wait;
+}
+.sr-btn--added {
+  background: #D1FAE5; color: #065F46;
+  border: 1px solid #A7F3D0;
+}
+.sr-btn--add-error {
+  background: #FEE2E2; color: #991B1B;
+  border: 1px solid #FECACA;
+}
+
 /* ===== Fresh note dot ===== */
 .sr-note-btn-wrap { position: relative; display: inline-flex; }
 .sr-fresh-dot {
@@ -1128,6 +1152,7 @@ function renderState(state: PanelState): string {
       const scrapedPhone = state.scraped.phone ? normalisePhoneE164(state.scraped.phone) : null;
       const phoneDisplay = scrapedPhone
         ? `<span class="sr-sep"></span><span class="sr-state-sub" data-scraped-phone>${icon('phone', 'sr-icon-xs')} Checked: ${esc(scrapedPhone)}</span>` : '';
+      const scrapedName = state.scraped.name ? esc(state.scraped.name) : '';
       return `<div class="sr-bar sr-bar--not-in-crm" data-status="no-match">
         <div class="sr-state-row">
           <span class="sr-brand"><span class="sr-teal-dot"></span>Swift Recruit</span>
@@ -1135,6 +1160,11 @@ function renderState(state: PanelState): string {
           ${icon('userPlus', 'sr-icon-sm')}
           <span class="sr-state-msg">Not in Swift Recruit</span>
           ${phoneDisplay}
+          <span class="sr-row-right">
+            <button class="sr-btn sr-btn--primary" type="button" data-add-to-crm data-scraped-name="${scrapedName}">
+              ${icon('userPlus', 'sr-icon-sm')} Add to Swift Recruit
+            </button>
+          </span>
         </div>
       </div>`;
     }
@@ -1250,6 +1280,39 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
     }
   });
 
+  // Add to CRM — confirm step
+  root.querySelectorAll<HTMLElement>('[data-add-to-crm]').forEach((btn) => {
+    let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+    let confirmed = false;
+
+    btn.addEventListener('click', () => {
+      if (confirmed) return; // already submitting
+
+      if (!btn.hasAttribute('data-confirming')) {
+        // First click — morph to confirm
+        const name = btn.getAttribute('data-scraped-name') ?? '';
+        btn.setAttribute('data-confirming', 'true');
+        btn.className = 'sr-btn sr-btn--add-confirm';
+        btn.innerHTML = `${icon('userPlus', 'sr-icon-sm')} Confirm add: ${name}?`;
+
+        confirmTimer = setTimeout(() => {
+          // Revert after 5s
+          btn.removeAttribute('data-confirming');
+          btn.className = 'sr-btn sr-btn--primary';
+          btn.innerHTML = `${icon('userPlus', 'sr-icon-sm')} Add to Swift Recruit`;
+        }, 5000);
+      } else {
+        // Second click — confirmed
+        if (confirmTimer) clearTimeout(confirmTimer);
+        confirmed = true;
+        btn.className = 'sr-btn sr-btn--adding';
+        btn.innerHTML = `<svg class="sr-spinner sr-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS.loader}</svg> Adding…`;
+
+        if (onAddToCrm) onAddToCrm();
+      }
+    });
+  });
+
   // Multi-match pill click
   root.querySelectorAll<HTMLElement>('[data-pill-index]').forEach((pill) => {
     pill.addEventListener('click', () => {
@@ -1288,6 +1351,25 @@ export function renderPanel(state: PanelState): void {
 
   wireEvents(root, state);
   observeBarHeight(root);
+}
+
+export function setAddButtonState(state: 'added' | 'error', message?: string): void {
+  if (!shadowRoot) return;
+  const btn = shadowRoot.querySelector('[data-add-to-crm]') as HTMLElement | null;
+  if (!btn) return;
+
+  if (state === 'added') {
+    btn.className = 'sr-btn sr-btn--added';
+    btn.innerHTML = `${icon('checkCircle', 'sr-icon-sm')} Added ✓`;
+  } else {
+    btn.className = 'sr-btn sr-btn--add-error';
+    btn.innerHTML = `${icon('alertTriangle', 'sr-icon-sm')} ${esc(message ?? 'Failed')}`;
+    setTimeout(() => {
+      btn.className = 'sr-btn sr-btn--primary';
+      btn.innerHTML = `${icon('userPlus', 'sr-icon-sm')} Add to Swift Recruit`;
+      btn.removeAttribute('data-confirming');
+    }, 3000);
+  }
 }
 
 export function destroyPanel(): void {

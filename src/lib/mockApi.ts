@@ -1,4 +1,4 @@
-import type { LookupRequest, MatchResponse, CandidateMatch } from './types';
+import type { LookupRequest, MatchResponse, CandidateMatch, CreateRequest, CreateBackgroundResponse } from './types';
 
 const FIXTURES: Record<string, MatchResponse> = {
   single_phone: {
@@ -403,6 +403,24 @@ function pickFixture(req: LookupRequest): MatchResponse {
 export async function mockCandidateMatch(req: LookupRequest): Promise<MatchResponse> {
   await new Promise((resolve) => setTimeout(resolve, 120 + Math.random() * 180));
   return pickFixture(req);
+}
+
+export async function mockCandidateCreate(req: CreateRequest): Promise<CreateBackgroundResponse> {
+  await new Promise((resolve) => setTimeout(resolve, 200 + Math.random() * 300));
+
+  // 409 duplicate when phone contains 900111
+  if (req.phone?.includes('900111')) {
+    return {
+      ok: false,
+      error: 'duplicate',
+      duplicate: {
+        error: 'duplicate',
+        existing: [{ candidate_id: 40033, name: 'Mark Jenkins', confidence: 'exact_phone' }],
+      },
+    };
+  }
+
+  return { ok: true, candidate_id: 90001, created: true, parsed: !!req.cv_text };
 }
 
 // Re-export fixtures for tests

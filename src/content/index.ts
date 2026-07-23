@@ -1,7 +1,7 @@
-import type { LookupRequest, BackgroundResponse } from '@/lib/types';
-import { scrapeCandidate, canTriggerLookup, isOnCandidatePage } from './scraper';
+import type { LookupRequest, BackgroundResponse, CreateRequest, CreateBackgroundResponse } from '@/lib/types';
+import { scrapeCandidate, scrapeCvText, canTriggerLookup, isOnCandidatePage } from './scraper';
 import type { ScrapeResult } from './selectors';
-import { renderPanel, destroyPanel, type PanelState } from './panel';
+import { renderPanel, destroyPanel, setOnAddToCrm, setAddButtonState, type PanelState } from './panel';
 
 console.log('[SR Extension] Content script loaded on', window.location.href);
 
@@ -75,6 +75,65 @@ async function performLookup(payload: LookupRequest): Promise<void> {
     setPanelState({ status: 'match', data: response, scraped: payload });
   }
 }
+
+// --- Add to CRM ---
+
+setOnAddToCrm(() => {
+  const result = scrapeCandidate();
+  const cvText = scrapeCvText();
+
+  const payload: CreateRequest = {
+    name: result.name ?? '',
+    phone: result.phone,
+    email: result.email,
+    location: result.location,
+    cv_text: cvText,
+  };
+
+  chrome.runtime.sendMessage(
+    { type: 'CREATE_CANDIDATE', payload },
+    (response: CreateBackgroundResponse | undefined) => {
+      if (chrome.runtime.lastError) {
+        setAddButtonState('error', chrome.runtime.lastError.message ?? 'Message error');
+        return;
+      }
+
+      if (!response) {
+        setAddButtonState('error', 'No response');
+        return;
+      }
+
+      if (response.ok === false) {
+        if (response.error === 'NOT_AUTHENTICATED') {
+          setPanelState({ status: 'logged-out' });
+          return;
+        }
+
+        // 409 duplicate — render existing matches
+        if (response.error === 'duplicate' && response.duplicate?.existing) {
+          setAddButtonState('error', 'Already in Swift Recruit');
+          // Re-run lookup to show the existing match
+          setTimeout(() => {
+            lastLookupKey = ''; // force re-lookup
+            onScan();
+          }, 1500);
+          return;
+        }
+
+        setAddButtonState('error', response.error);
+        return;
+      }
+
+      // 201 success
+      setAddButtonState('added');
+      // Re-run lookup after brief delay so bar flips to confirmed match
+      setTimeout(() => {
+        lastLookupKey = ''; // force re-lookup
+        onScan();
+      }, 1500);
+    },
+  );
+});
 
 // --- Scan orchestration ---
 

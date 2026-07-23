@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { renderPanel, destroyPanel, relativeDate, licenceStatus, isConfirmed, isSuggestion, isPhoneNotOnFile, isFreshNote, type PanelState } from '../panel';
+import { renderPanel, destroyPanel, relativeDate, licenceStatus, isConfirmed, isSuggestion, isPhoneNotOnFile, isFreshNote, setAddButtonState, type PanelState } from '../panel';
 import type { CandidateMatch, LookupRequest, MatchResponse, LastNote } from '@/lib/types';
 import { normalisePhoneE164 } from '@/lib/phoneNormalise';
 import { FIXTURES } from '@/lib/mockApi';
@@ -368,4 +368,84 @@ describe('normalisePhoneE164', () => {
 describe('tier helpers', () => {
   it('isConfirmed', () => { expect(isConfirmed('exact_phone')).toBe(true); expect(isConfirmed('name_location')).toBe(false); });
   it('isSuggestion', () => { expect(isSuggestion('name_location')).toBe(true); expect(isSuggestion('exact_phone')).toBe(false); });
+});
+
+// ---------------------------------------------------------------------------
+// Add to CRM
+// ---------------------------------------------------------------------------
+
+describe('Bar — Add to CRM button', () => {
+  afterEach(() => destroyPanel());
+
+  it('renders in no-match state', () => {
+    renderPanel(noMatchState());
+    const btn = shadow().querySelector('[data-add-to-crm]');
+    expect(btn).not.toBeNull();
+    expect(btn!.textContent).toContain('Add to Swift Recruit');
+  });
+
+  it('not rendered in match state', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    expect(shadow().querySelector('[data-add-to-crm]')).toBeNull();
+  });
+
+  it('first click morphs to confirm with scraped name', () => {
+    renderPanel(noMatchState({ phone: '07712345678', email: null, name: 'Tony Lynn', location: null }));
+    const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
+    btn.click();
+    expect(btn.textContent).toContain('Confirm add');
+    expect(btn.textContent).toContain('Tony Lynn');
+    expect(btn.classList.contains('sr-btn--add-confirm')).toBe(true);
+  });
+
+  it('confirm reverts after 5s timeout', async () => {
+    const { vi } = await import('vitest');
+    vi.useFakeTimers();
+    renderPanel(noMatchState({ phone: '07712345678', email: null, name: 'Tony Lynn', location: null }));
+    const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
+    btn.click();
+    expect(btn.textContent).toContain('Confirm add');
+    vi.advanceTimersByTime(5100);
+    expect(btn.textContent).toContain('Add to Swift Recruit');
+    expect(btn.classList.contains('sr-btn--primary')).toBe(true);
+    vi.useRealTimers();
+  });
+
+  it('setAddButtonState("added") shows "Added ✓"', () => {
+    renderPanel(noMatchState());
+    setAddButtonState('added');
+    const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
+    expect(btn.textContent).toContain('Added');
+    expect(btn.classList.contains('sr-btn--added')).toBe(true);
+  });
+
+  it('setAddButtonState("error") shows error message', () => {
+    renderPanel(noMatchState());
+    setAddButtonState('error', 'Already in Swift Recruit');
+    const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
+    expect(btn.textContent).toContain('Already in Swift Recruit');
+    expect(btn.classList.contains('sr-btn--add-error')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scrapeCvText
+// ---------------------------------------------------------------------------
+
+describe('scrapeCvText', () => {
+  it('extracts full CV text from fixture', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve, dirname } = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const fixtureHtml = readFileSync(resolve(__dirname, '../../../fixtures/indeed-profile.html'), 'utf-8');
+    document.documentElement.innerHTML = fixtureHtml;
+
+    const { scrapeCvText } = await import('../scraper');
+    const cv = scrapeCvText();
+    expect(cv).not.toBeNull();
+    expect(cv!).toContain('HGV driver');
+    expect(cv!.length).toBeLessThanOrEqual(20_000);
+  });
 });

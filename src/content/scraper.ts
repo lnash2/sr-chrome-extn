@@ -30,6 +30,24 @@ export function scrapeCandidate(): ScrapeResult {
   };
 }
 
+const CV_MAX_CHARS = 20_000;
+
+export function scrapeCvText(): string | null {
+  const container = document.querySelector('#candidateProfileContainer');
+  if (!container) return null;
+
+  const section =
+    container.querySelector('[data-testid*="resume" i]') ??
+    container.querySelector('[data-testid*="cv" i]') ??
+    container.querySelector('[aria-label*="resume" i]') ??
+    container.querySelector('.resume-text, .cv-text');
+
+  if (!section) return null;
+  const text = section.textContent?.trim();
+  if (!text || text.length < 20) return null;
+  return text.slice(0, CV_MAX_CHARS);
+}
+
 export function canTriggerLookup(result: ScrapeResult): boolean {
   if (result.phone) return true;
   if (result.email) return true;
