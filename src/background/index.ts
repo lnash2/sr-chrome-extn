@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
-import { mockCandidateMatch, mockCandidateCreate } from '@/lib/mockApi';
+import { mockCandidateMatch, mockCandidateCreate, mockCreateNote } from '@/lib/mockApi';
 import { liveCandidateMatch } from '@/lib/liveApi';
-import type { LookupRequest, BackgroundResponse, CreateRequest, CreateBackgroundResponse } from '@/lib/types';
+import type { LookupRequest, BackgroundResponse, CreateRequest, CreateBackgroundResponse, NoteCreateRequest, NoteCreateResponse } from '@/lib/types';
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true';
 
@@ -115,6 +115,50 @@ async function handleCreateCandidate(payload: CreateRequest): Promise<CreateBack
 }
 
 // ---------------------------------------------------------------------------
+// Note create handler
+// ---------------------------------------------------------------------------
+
+async function handleCreateNote(payload: NoteCreateRequest): Promise<NoteCreateResponse> {
+  if (USE_MOCK) {
+    return mockCreateNote(payload);
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    return { ok: false, error: 'NOT_AUTHENTICATED' };
+  }
+
+  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/note-create-from-extension`;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json',
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (res.status === 401) {
+      await supabase.auth.signOut();
+      return { ok: false, error: 'NOT_AUTHENTICATED' };
+    }
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      let message = `Note failed (${res.status})`;
+      try { const p = JSON.parse(body); if (p.error) message = p.error; } catch { /* generic */ }
+      return { ok: false, error: message };
+    }
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Call handler
 // ---------------------------------------------------------------------------
 
@@ -182,22 +226,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         response = await handleCreateCandidate(message.payload) as BackgroundResponse;
       } else if (message?.type === 'INITIATE_CALL') {
         response = await handleInitiateCall(message.payload);
-      } else if (message?.type === 'OPEN_SOFTPHONE') {
-        try {
-          if (_sender.tab?.id) {
-            await chrome.sidePanel.open({ tabId: _sender.tab.id });
-            // Small delay so the panel page loads before receiving the message
-            setTimeout(() => {
-              chrome.runtime.sendMessage({
-                type: 'SIDEPANEL_SET_CANDIDATE',
-                payload: message.payload,
-              });
-            }, 300);
-          }
-          response = { ok: true, data: { matches: [], metadata: { duration_ms: 0 } } };
-        } catch (err) {
-          response = { ok: false, error: err instanceof Error ? err.message : String(err) };
-        }
+      } else if (message?.type === 'CREATE_NOTE') {
+        response = await handleCreateNote(message.payload) as BackgroundResponse;
       } else {
         response = { ok: false, error: `Unknown message type: ${message?.type}` };
       }

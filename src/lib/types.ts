@@ -112,3 +112,14 @@ export interface DuplicateResponse {
 export type CreateBackgroundResponse =
   | CreateResponse
   | { ok: false; error: string; duplicate?: DuplicateResponse };
+
+// --- Note create ---
+
+export interface NoteCreateRequest {
+  candidate_id: number;
+  text: string;
+}
+
+export type NoteCreateResponse =
+  | { ok: true }
+  | { ok: false; error: string };

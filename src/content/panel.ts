@@ -135,6 +135,10 @@ let expandedPill: number | null = null; // index into currentMatches for multi-m
 export let onAddToCrm: (() => void) | null = null;
 export function setOnAddToCrm(handler: () => void): void { onAddToCrm = handler; }
 
+/** Hook for the content script to silently re-lookup after note save */
+export let onNoteSaved: (() => void) | null = null;
+export function setOnNoteSaved(handler: () => void): void { onNoteSaved = handler; }
+
 function getOrCreateHost(): HTMLElement {
   let host = document.getElementById(HOST_ID);
   if (!host) {
@@ -681,6 +685,57 @@ const BAR_CSS = /* css */ `
 }
 .sr-note-panel-footer a:hover { background: #CFFAFE; }
 
+/* ===== Note compose ===== */
+.sr-note-compose {
+  padding: 10px 14px;
+  border-bottom: 1px solid #E5E7EB;
+  background: #FFFFFF;
+}
+.sr-note-textarea {
+  width: 100%;
+  min-height: 36px;
+  max-height: 96px;
+  padding: 8px 10px;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #334155;
+  resize: vertical;
+  background: #FFFFFF;
+  transition: border-color 0.15s ease;
+}
+.sr-note-textarea:focus {
+  outline: none;
+  border-color: #0891B2;
+  box-shadow: 0 0 0 3px rgba(8,145,178,0.12);
+}
+.sr-note-textarea::placeholder { color: #94A3B8; }
+.sr-note-compose-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sr-note-char-count {
+  font-size: 10px;
+  color: #94A3B8;
+}
+.sr-note-char-count--warn { color: #92400E; }
+.sr-note-compose-error {
+  font-size: 11px;
+  color: #991B1B;
+  flex: 1;
+}
+.sr-note-save-btn { margin-left: auto; }
+.sr-note-empty {
+  text-align: center;
+  padding: 20px 14px;
+  font-size: 12px;
+  color: #94A3B8;
+}
+
 /* ===== Last contact (Row 1) ===== */
 .sr-last-contact {
   display: inline-flex;
@@ -935,17 +990,21 @@ function renderNoteCard(note: LastNote, idx: number): string {
 }
 
 function noteButton(m: CandidateMatch): string {
+  // Show for any confirmed match, even with zero notes (for compose)
+  const confirmed = isConfirmed(m.confidence);
   const notes: LastNote[] = m.recent_notes && m.recent_notes.length > 0
     ? m.recent_notes
     : m.last_note ? [m.last_note] : [];
 
-  if (notes.length === 0) return '';
+  if (!confirmed && notes.length === 0) return '';
 
-  const freshDot = isFreshNote(notes[0])
+  const freshDot = notes.length > 0 && isFreshNote(notes[0])
     ? `<span class="sr-fresh-dot" data-fresh-dot title="Note added ${relativeDate(notes[0].created_at)}"></span>` : '';
 
   const deepLink = `https://portal.swift-recruit.co.uk/swift/candidates/${m.candidate_id}`;
-  const cardsHtml = notes.map((n, i) => renderNoteCard(n, i)).join('');
+  const cardsHtml = notes.length > 0
+    ? notes.map((n, i) => renderNoteCard(n, i)).join('')
+    : '<div class="sr-note-empty">No notes yet</div>';
 
   return `<span class="sr-note-anchor">
     <span class="sr-note-btn-wrap">
@@ -958,6 +1017,16 @@ function noteButton(m: CandidateMatch): string {
       <div class="sr-note-panel-header">
         Notes
         <span class="sr-note-panel-count">${notes.length} note${notes.length !== 1 ? 's' : ''}</span>
+      </div>
+      <div class="sr-note-compose" data-note-compose>
+        <textarea class="sr-note-textarea" data-note-textarea placeholder="Add a note…" maxlength="2000" rows="2"></textarea>
+        <div class="sr-note-compose-footer">
+          <span class="sr-note-char-count" data-note-char-count hidden>0 / 2000</span>
+          <span class="sr-note-compose-error" data-note-compose-error hidden></span>
+          <button class="sr-btn sr-btn--primary sr-note-save-btn" type="button" data-note-save="${m.candidate_id}">
+            ${icon('stickyNote', 'sr-icon-sm')} Save note
+          </button>
+        </div>
       </div>
       <div class="sr-note-panel-body" data-note-body>
         ${cardsHtml}
@@ -1021,9 +1090,6 @@ function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: C
           ${taskChipButton(m)}
           <button class="sr-btn sr-btn--call" type="button" data-call="${m.candidate_id}" data-call-phone="${esc(m.phone_number)}" title="Call ${esc(m.name)}">
             ${icon('phone', 'sr-icon-sm')} Call
-          </button>
-          <button class="sr-btn sr-btn--secondary" type="button" data-open-softphone="${m.candidate_id}" data-softphone-name="${esc(m.name)}" title="Open softphone">
-            ${icon('phone', 'sr-icon-sm')} Softphone
           </button>
           <a class="sr-btn ${crmBtnClass}" href="${esc(deepLink)}" target="_blank" rel="noopener" data-deeplink>
             ${icon('externalLink', 'sr-icon-sm')} ${crmBtnLabel}
@@ -1240,15 +1306,6 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
     });
   });
 
-  // Open softphone side panel
-  root.querySelectorAll<HTMLElement>('[data-open-softphone]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const candidateId = parseInt(btn.getAttribute('data-open-softphone') ?? '0', 10);
-      const name = btn.getAttribute('data-softphone-name') ?? '';
-      chrome.runtime.sendMessage({ type: 'OPEN_SOFTPHONE', payload: { candidate_id: candidateId, name } });
-    });
-  });
-
   // Note popover toggle — traverse up to .sr-note-anchor to find sibling popover
   root.querySelectorAll<HTMLElement>('[data-note-toggle]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -1256,6 +1313,84 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
       const anchor = btn.closest('.sr-note-anchor');
       const popover = anchor?.querySelector('[data-note-popover]') as HTMLElement | null;
       if (popover) popover.hidden = !popover.hidden;
+    });
+  });
+
+  // Note compose — char counter, save, Cmd+Enter
+  root.querySelectorAll<HTMLTextAreaElement>('[data-note-textarea]').forEach((textarea) => {
+    const counter = textarea.closest('.sr-note-compose')?.querySelector('[data-note-char-count]') as HTMLElement | null;
+
+    textarea.addEventListener('input', () => {
+      const len = textarea.value.length;
+      if (counter) {
+        counter.hidden = len < 1800;
+        counter.textContent = `${len} / 2000`;
+        counter.className = len >= 1800 ? 'sr-note-char-count sr-note-char-count--warn' : 'sr-note-char-count';
+      }
+    });
+
+    textarea.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        const saveBtn = textarea.closest('.sr-note-compose')?.querySelector('[data-note-save]') as HTMLElement | null;
+        saveBtn?.click();
+      }
+    });
+  });
+
+  root.querySelectorAll<HTMLElement>('[data-note-save]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const compose = btn.closest('.sr-note-compose');
+      const textarea = compose?.querySelector('[data-note-textarea]') as HTMLTextAreaElement | null;
+      const errorEl = compose?.querySelector('[data-note-compose-error]') as HTMLElement | null;
+      if (!textarea || !textarea.value.trim()) return;
+
+      const candidateId = parseInt(btn.getAttribute('data-note-save') ?? '0', 10);
+      const text = textarea.value.trim();
+
+      // Saving state
+      btn.className = 'sr-btn sr-btn--adding sr-note-save-btn';
+      btn.innerHTML = `<svg class="sr-spinner sr-icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS.loader}</svg> Saving…`;
+      if (errorEl) errorEl.hidden = true;
+
+      chrome.runtime.sendMessage(
+        { type: 'CREATE_NOTE', payload: { candidate_id: candidateId, text } },
+        (response: { ok: boolean; error?: string } | undefined) => {
+          if (chrome.runtime.lastError || !response?.ok) {
+            const err = response?.error ?? chrome.runtime.lastError?.message ?? 'Failed to save';
+            if (err === 'NOT_AUTHENTICATED') {
+              if (onAddToCrm) { /* content script handles */ }
+              return;
+            }
+            // Show error, preserve text
+            if (errorEl) { errorEl.textContent = err; errorEl.hidden = false; }
+            btn.className = 'sr-btn sr-btn--primary sr-note-save-btn';
+            btn.innerHTML = `${icon('stickyNote', 'sr-icon-sm')} Save note`;
+            return;
+          }
+
+          // Success — clear textarea, optimistically prepend note card
+          textarea.value = '';
+          const counter = compose?.querySelector('[data-note-char-count]') as HTMLElement | null;
+          if (counter) counter.hidden = true;
+          btn.className = 'sr-btn sr-btn--primary sr-note-save-btn';
+          btn.innerHTML = `${icon('stickyNote', 'sr-icon-sm')} Save note`;
+
+          // Optimistic prepend
+          const body = btn.closest('.sr-note-panel')?.querySelector('[data-note-body]');
+          if (body) {
+            const emptyMsg = body.querySelector('.sr-note-empty');
+            if (emptyMsg) emptyMsg.remove();
+            const optimisticNote: LastNote = { text, created_at: new Date().toISOString(), author: 'You' };
+            const card = document.createElement('div');
+            card.innerHTML = renderNoteCard(optimisticNote, -1);
+            body.prepend(card.firstElementChild!);
+          }
+
+          // Silently re-run lookup in background to get server truth
+          if (onNoteSaved) onNoteSaved();
+        },
+      );
     });
   });
 

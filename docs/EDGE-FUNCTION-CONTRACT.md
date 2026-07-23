@@ -226,3 +226,154 @@ The server calls the Ringover API to initiate a click-to-call using the authenti
 | 401 | Missing or invalid JWT |
 | 404 | Endpoint not deployed yet (extension handles gracefully) |
 | 500 | Internal server error / Ringover API failure |
+
+---
+
+# Edge Function Contract: `candidate-create-from-extension`
+
+**Endpoint:** `POST /functions/v1/candidate-create-from-extension`  
+**Auth:** Bearer `<recruiter JWT>` — Pattern A (same as `candidate-match`).  
+**Writes:** Yes — creates `candidates` row + optional `addresses` row + optional `notes` row. No other tables touched.
+
+## Request
+
+```http
+POST /functions/v1/candidate-create-from-extension
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "name": "string",
+  "phone": "string | null",
+  "email": "string | null",
+  "location": "string | null",
+  "cv_text": "string | null"
+}
+```
+
+- **name** — required. Full name as displayed on the job board.
+- **phone** — raw as scraped. At least one of `phone` or `email` must be non-null.
+- **email** — raw as scraped. Emails ending `@indeedemail.com` are silently discarded (treated as absent).
+- **location** — town/city name or UK postcode. Used to create an `addresses` row.
+- **cv_text** — optional. Raw text scraped from the Indeed CV page. When provided, parsed server-side via Gemini to extract skills, job titles, address detail, and additional contact info. Parsed fields fill gaps only — scraped fields always win on conflict. If parsing fails, creation proceeds with scraped data alone.
+
+Validation: `name` AND (`phone` OR `email`) required; 400 otherwise.
+
+## Behaviour
+
+### Step 1 — Mandatory dedupe
+
+Before any insert, runs the same matching as `candidate-match`:
+
+1. Phone variation match against `candidates.phone_number` (all UK format variations).
+2. If no phone hit: case-insensitive email match against `candidates.email`.
+
+If CV parsing reveals a phone or email not in the original request, those are also checked.
+
+**Any exact match → 409 with the existing records. No candidate created.**
+
+### Step 2 — CV parse (when `cv_text` provided)
+
+Calls Gemini 2.5 Flash (`LOVABLE_API_KEY`) with the raw text to extract:
+
+| Field | Type |
+|-------|------|
+| `name` | string |
+| `email` | string \| null |
+| `phone` | string \| null |
+| `address_line1` | string \| null |
+| `address_city` | string \| null |
+| `address_postcode` | string \| null |
+| `skills` | string[] |
+| `experience_years` | number \| null |
+| `job_titles` | string[] |
+| `confidence` | number (0–1) |
+
+Merge rule: scraped fields win; parsed data fills nulls. Parsing failure is non-fatal.
+
+### Step 3 — Create
+
+1. **`candidates` row:** `forename`/`surname` split from name, phone normalised to E.164 `+44`, email lowercased, `active_status = 'inactive'`, `origin_source = 'indeed_extension'`, `created_by_user_id` + `recruiter_id` = authenticated CRM user.
+2. **`addresses` row** (if location or parsed address available): linked via `candidates.address_id`. Location interpreted as city (text) or `postal_code` (if UK postcode pattern).
+3. **`notes` row** (if parsing yielded skills/job-titles): content = `"Created from Indeed via extension\n\n"` + summary of roles, experience, skills.
+
+No `candidate_licence_categories` rows are created — licence data requires verification via qualifying call.
+
+## Response — 201 Created
+
+```json
+{
+  "ok": true,
+  "candidate_id": 12345,
+  "created": true,
+  "parsed": true
+}
+```
+
+- **parsed** — `true` if CV text was successfully parsed by Gemini; `false` if not provided or parsing failed.
+- **warnings** — optional `string[]`, present only if address or note creation failed after the candidate was inserted. The `candidate_id` is still valid.
+
+## Response — 409 Conflict (duplicate)
+
+```json
+{
+  "error": "duplicate",
+  "existing": [
+    { "candidate_id": 12345, "name": "John Smith", "confidence": "exact_phone" }
+  ]
+}
+```
+
+The extension should display the existing record(s) instead of offering creation.
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Missing name, or missing both phone and email |
+| 401 | Missing or invalid JWT |
+| 409 | Duplicate candidate found (phone or email match) |
+| 500 | Internal server error |
+
+---
+
+# Edge Function Contract: `note-create-from-extension`
+
+**Endpoint:** `POST /functions/v1/note-create-from-extension`  
+**Auth:** Bearer `<recruiter JWT>` — Pattern A.  
+**Writes:** One `notes` row. No other tables touched.
+
+## Request
+
+```http
+POST /functions/v1/note-create-from-extension
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "candidate_id": 12345,
+  "text": "Spoke to candidate, available next week for C+E work."
+}
+```
+
+- **candidate_id** — required. Must reference an existing candidate (404 if not found).
+- **text** — required, non-empty, max 2000 characters.
+
+## Response — 201 Created
+
+```json
+{ "ok": true }
+```
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Missing or invalid `candidate_id`, empty `text`, or `text` exceeds 2000 chars |
+| 401 | Missing or invalid JWT |
+| 404 | Candidate not found |
+| 500 | Internal server error |

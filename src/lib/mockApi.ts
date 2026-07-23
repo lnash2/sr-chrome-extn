@@ -1,4 +1,4 @@
-import type { LookupRequest, MatchResponse, CandidateMatch, CreateRequest, CreateBackgroundResponse } from './types';
+import type { LookupRequest, MatchResponse, CandidateMatch, CreateRequest, CreateBackgroundResponse, NoteCreateRequest, NoteCreateResponse } from './types';
 
 const FIXTURES: Record<string, MatchResponse> = {
   single_phone: {
@@ -421,6 +421,11 @@ export async function mockCandidateCreate(req: CreateRequest): Promise<CreateBac
   }
 
   return { ok: true, candidate_id: 90001, created: true, parsed: !!req.cv_text };
+}
+
+export async function mockCreateNote(_req: NoteCreateRequest): Promise<NoteCreateResponse> {
+  await new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
+  return { ok: true };
 }
 
 // Re-export fixtures for tests

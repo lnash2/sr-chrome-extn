@@ -1,7 +1,7 @@
 import type { LookupRequest, BackgroundResponse, CreateRequest, CreateBackgroundResponse } from '@/lib/types';
 import { scrapeCandidate, scrapeCvText, canTriggerLookup, isOnCandidatePage } from './scraper';
 import type { ScrapeResult } from './selectors';
-import { renderPanel, destroyPanel, setOnAddToCrm, setAddButtonState, type PanelState } from './panel';
+import { renderPanel, destroyPanel, setOnAddToCrm, setOnNoteSaved, setAddButtonState, type PanelState } from './panel';
 
 console.log('[SR Extension] Content script loaded on', window.location.href);
 
@@ -133,6 +133,15 @@ setOnAddToCrm(() => {
       }, 1500);
     },
   );
+});
+
+// --- Note saved → silent re-lookup ---
+
+setOnNoteSaved(() => {
+  setTimeout(() => {
+    lastLookupKey = '';
+    onScan();
+  }, 1000);
 });
 
 // --- Scan orchestration ---

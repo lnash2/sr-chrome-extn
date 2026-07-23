@@ -161,8 +161,9 @@ describe('Bar — notes panel (CRM feed)', () => {
     expect(cards[0].textContent).toContain('Legacy note');
   });
 
-  it('no button when no notes at all', () => {
-    renderPanel(matchState([fixtureMatch('sparse')]));
+  it('no button when no notes AND suggestion tier', () => {
+    const m: CandidateMatch = { ...fixtureMatch('sparse'), confidence: 'name_location' };
+    renderPanel(matchState([m], { phone: null, email: null, name: 'J', location: 'X' }));
     expect(shadow().querySelector('[data-note-toggle]')).toBeNull();
   });
 
@@ -285,19 +286,19 @@ describe('Bar — tasks', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Call + Softphone buttons
+// Call button (softphone removed)
 // ---------------------------------------------------------------------------
 
-describe('Bar — call/softphone', () => {
+describe('Bar — call button', () => {
   afterEach(() => destroyPanel());
   it('Call button in Row 1', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     const btn = shadow().querySelector('.sr-row-1 [data-call]')!;
     expect(btn.textContent).toContain('Call');
   });
-  it('Softphone button in Row 1', () => {
+  it('no softphone button', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
-    expect(shadow().querySelector('.sr-row-1 [data-open-softphone]')).not.toBeNull();
+    expect(shadow().querySelector('[data-open-softphone]')).toBeNull();
   });
 });
 
@@ -319,9 +320,10 @@ describe('Bar — warnings/tiers', () => {
 describe('Bar — sparse', () => {
   afterEach(() => destroyPanel());
   it('no null/undefined', () => { renderPanel(matchState([fixtureMatch('sparse')])); expect(barText()).not.toContain('null'); expect(barText()).not.toContain('undefined'); });
-  it('no note/task/booking extras', () => {
+  it('no task/booking extras; note button renders (confirmed, for compose)', () => {
     renderPanel(matchState([fixtureMatch('sparse')]));
-    expect(shadow().querySelector('[data-note-toggle]')).toBeNull();
+    // sparse is exact_phone (confirmed), so note button renders for compose even with no notes
+    expect(shadow().querySelector('[data-note-toggle]')).not.toBeNull();
     expect(shadow().querySelector('[data-task-toggle]')).toBeNull();
     expect(shadow().querySelector('[data-next-booking]')).toBeNull();
   });
@@ -425,6 +427,82 @@ describe('Bar — Add to CRM button', () => {
     const btn = shadow().querySelector('[data-add-to-crm]') as HTMLElement;
     expect(btn.textContent).toContain('Already in Swift Recruit');
     expect(btn.classList.contains('sr-btn--add-error')).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scrapeCvText
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Note compose
+// ---------------------------------------------------------------------------
+
+describe('Bar — note compose', () => {
+  afterEach(() => destroyPanel());
+
+  it('compose area renders for confirmed match with notes', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    expect(shadow().querySelector('[data-note-textarea]')).not.toBeNull();
+    expect(shadow().querySelector('[data-note-save]')).not.toBeNull();
+  });
+
+  it('compose area renders for confirmed match with zero notes', () => {
+    const m: CandidateMatch = { ...fixtureMatch('sparse'), confidence: 'exact_phone' };
+    renderPanel(matchState([m]));
+    // Note button should render for confirmed match even with no notes
+    const btn = shadow().querySelector('[data-note-toggle]');
+    expect(btn).not.toBeNull();
+    (btn as HTMLElement).click();
+    expect(shadow().querySelector('[data-note-textarea]')).not.toBeNull();
+    expect(shadow().querySelector('.sr-note-empty')).not.toBeNull();
+  });
+
+  it('no note button for suggestion tier with zero notes', () => {
+    const m: CandidateMatch = { ...fixtureMatch('sparse'), confidence: 'name_location' };
+    renderPanel(matchState([m], { phone: null, email: null, name: 'J', location: 'X' }));
+    expect(shadow().querySelector('[data-note-toggle]')).toBeNull();
+  });
+
+  it('char counter shows past 1800', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    const textarea = shadow().querySelector('[data-note-textarea]') as HTMLTextAreaElement;
+    // Simulate typing 1850 chars
+    textarea.value = 'x'.repeat(1850);
+    textarea.dispatchEvent(new Event('input'));
+    const counter = shadow().querySelector('[data-note-char-count]') as HTMLElement;
+    expect(counter.hidden).toBe(false);
+    expect(counter.textContent).toContain('1850');
+  });
+
+  it('char counter hidden below 1800', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    const textarea = shadow().querySelector('[data-note-textarea]') as HTMLTextAreaElement;
+    textarea.value = 'short';
+    textarea.dispatchEvent(new Event('input'));
+    expect((shadow().querySelector('[data-note-char-count]') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('save button carries candidate_id', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    expect(shadow().querySelector('[data-note-save]')!.getAttribute('data-note-save')).toBe('10421');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Softphone fully absent
+// ---------------------------------------------------------------------------
+
+describe('Bar — softphone removed', () => {
+  afterEach(() => destroyPanel());
+
+  it('no softphone button in bar', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    expect(shadow().querySelector('[data-open-softphone]')).toBeNull();
   });
 });
 
