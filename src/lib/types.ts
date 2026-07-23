@@ -118,6 +118,7 @@ export type CreateBackgroundResponse =
 export interface NoteCreateRequest {
   candidate_id: number;
   text: string;
+  type?: number;
 }
 
 export type NoteCreateResponse =

@@ -286,15 +286,14 @@ describe('Bar — tasks', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Call button (softphone removed)
+// Call + softphone removed
 // ---------------------------------------------------------------------------
 
-describe('Bar — call button', () => {
+describe('Bar — removed buttons', () => {
   afterEach(() => destroyPanel());
-  it('Call button in Row 1', () => {
+  it('no Call button', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
-    const btn = shadow().querySelector('.sr-row-1 [data-call]')!;
-    expect(btn.textContent).toContain('Call');
+    expect(shadow().querySelector('[data-call]')).toBeNull();
   });
   it('no softphone button', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
@@ -490,6 +489,122 @@ describe('Bar — note compose', () => {
     renderPanel(matchState([fixtureMatch('single_phone')]));
     (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
     expect(shadow().querySelector('[data-note-save]')!.getAttribute('data-note-save')).toBe('10421');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Notes panel toggle / close (regression)
+// ---------------------------------------------------------------------------
+
+describe('Bar — notes panel toggle', () => {
+  afterEach(() => destroyPanel());
+  const m = fixtureMatch('single_phone');
+
+  it('button click opens panel', () => {
+    renderPanel(matchState([m]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    expect((shadow().querySelector('[data-note-popover]') as HTMLElement).hidden).toBe(false);
+  });
+
+  it('button click again closes panel', () => {
+    renderPanel(matchState([m]));
+    const btn = shadow().querySelector('[data-note-toggle]') as HTMLElement;
+    btn.click();
+    btn.click();
+    expect((shadow().querySelector('[data-note-popover]') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('clicking inside panel does NOT close it', () => {
+    renderPanel(matchState([m]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    // Click the textarea inside the panel
+    const textarea = shadow().querySelector('[data-note-textarea]') as HTMLElement;
+    textarea.click();
+    expect((shadow().querySelector('[data-note-popover]') as HTMLElement).hidden).toBe(false);
+  });
+
+  it('clicking outside panel (on bar) closes it', () => {
+    renderPanel(matchState([m]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    // Click the brand element (outside the note anchor)
+    (shadow().querySelector('.sr-brand') as HTMLElement).click();
+    expect((shadow().querySelector('[data-note-popover]') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('Escape key closes panel', () => {
+    renderPanel(matchState([m]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    shadow().querySelector('.sr-bar')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect((shadow().querySelector('[data-note-popover]') as HTMLElement).hidden).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Note type selector
+// ---------------------------------------------------------------------------
+
+describe('Bar — note type selector', () => {
+  afterEach(() => destroyPanel());
+
+  it('renders type select in compose area', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    const select = shadow().querySelector('[data-note-type]') as HTMLSelectElement;
+    expect(select).not.toBeNull();
+    expect(select.options.length).toBeGreaterThan(5);
+  });
+
+  it('defaults to "No type" (empty value)', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    const select = shadow().querySelector('[data-note-type]') as HTMLSelectElement;
+    expect(select.value).toBe('');
+  });
+
+  it('contains "Recruiting Call" option with value 4', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    (shadow().querySelector('[data-note-toggle]') as HTMLElement).click();
+    const select = shadow().querySelector('[data-note-type]') as HTMLSelectElement;
+    const opt = Array.from(select.options).find(o => o.value === '4');
+    expect(opt).not.toBeUndefined();
+    expect(opt!.textContent).toContain('Recruiting Call');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Status badge — null / unknown values
+// ---------------------------------------------------------------------------
+
+describe('Bar — status badge', () => {
+  afterEach(() => destroyPanel());
+
+  it('active → green badge', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const badge = shadow().querySelector('[data-status-badge]');
+    expect(badge).not.toBeNull();
+    expect(badge!.classList.contains('sr-badge--active')).toBe(true);
+    expect(badge!.textContent).toContain('active');
+  });
+
+  it('null → no badge rendered', () => {
+    const m: CandidateMatch = { ...fixtureMatch('sparse'), active_status: null as unknown as 'active' };
+    renderPanel(matchState([m]));
+    expect(shadow().querySelector('[data-status-badge]')).toBeNull();
+  });
+
+  it('empty string → no badge rendered', () => {
+    const m: CandidateMatch = { ...fixtureMatch('sparse'), active_status: '' as unknown as 'active' };
+    renderPanel(matchState([m]));
+    expect(shadow().querySelector('[data-status-badge]')).toBeNull();
+  });
+
+  it('unknown value "unresponsive" → grey badge with text', () => {
+    const m: CandidateMatch = { ...fixtureMatch('sparse'), active_status: 'unresponsive' as 'active' };
+    renderPanel(matchState([m]));
+    const badge = shadow().querySelector('[data-status-badge]');
+    expect(badge).not.toBeNull();
+    expect(badge!.classList.contains('sr-badge--inactive')).toBe(true);
+    expect(badge!.textContent).toContain('unresponsive');
   });
 });
 

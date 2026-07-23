@@ -484,20 +484,7 @@ const BAR_CSS = /* css */ `
 }
 .sr-btn--ghost:hover { background: #F1F5F9; color: #0F172A; }
 
-.sr-btn--call {
-  background: #D1FAE5; color: #065F46;
-  border: 1px solid #A7F3D0;
-}
-.sr-btn--call:hover { background: #A7F3D0; }
-.sr-btn--calling {
-  background: #DBEAFE; color: #1E40AF;
-  border: 1px solid #BFDBFE;
-  cursor: wait;
-}
-.sr-btn--call-error {
-  background: #F1F5F9; color: #94A3B8;
-  border: 1px solid #E2E8F0;
-}
+/* call button removed — initiate-call retained in contract for future */
 
 /* ===== Collapse chevron ===== */
 .sr-collapse-btn {
@@ -728,6 +715,23 @@ const BAR_CSS = /* css */ `
   color: #991B1B;
   flex: 1;
 }
+.sr-note-type-select {
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.sr-note-type-select:focus {
+  outline: none;
+  border-color: #0891B2;
+  box-shadow: 0 0 0 3px rgba(8,145,178,0.12);
+}
 .sr-note-save-btn { margin-left: auto; }
 .sr-note-empty {
   text-align: center;
@@ -843,8 +847,9 @@ const BAR_CSS = /* css */ `
 // ---------------------------------------------------------------------------
 
 function statusBadge(s: CandidateMatch['active_status']): string {
+  if (!s) return '';
   const cls = s === 'active' ? 'sr-badge--active' : 'sr-badge--inactive';
-  return `<span class="sr-badge ${cls}"><span class="sr-badge-dot"></span>${s}</span>`;
+  return `<span class="sr-badge ${cls}" data-status-badge><span class="sr-badge-dot"></span>${esc(s)}</span>`;
 }
 
 function confBadge(c: CandidateMatch['confidence']): string {
@@ -1021,6 +1026,25 @@ function noteButton(m: CandidateMatch): string {
       <div class="sr-note-compose" data-note-compose>
         <textarea class="sr-note-textarea" data-note-textarea placeholder="Add a note…" maxlength="2000" rows="2"></textarea>
         <div class="sr-note-compose-footer">
+          <select class="sr-note-type-select" data-note-type>
+            <option value="">No type</option>
+            <option value="4">Recruiting Call</option>
+            <option value="5">BD Call</option>
+            <option value="6">Cold Call</option>
+            <option value="7">Prospect Call</option>
+            <option value="13">First Call - New Starter</option>
+            <option value="17">First Contact</option>
+            <option value="20">Email</option>
+            <option value="21">Other</option>
+            <option value="23">Telephone Registration</option>
+            <option value="26">First Day Call</option>
+            <option value="71">Candidate Spec</option>
+            <option value="113">Unsuccessful Call</option>
+            <option value="329">Spec Candidate</option>
+            <option value="330">CV Sent</option>
+            <option value="336">Key Call</option>
+            <option value="375">Registration call</option>
+          </select>
           <span class="sr-note-char-count" data-note-char-count hidden>0 / 2000</span>
           <span class="sr-note-compose-error" data-note-compose-error hidden></span>
           <button class="sr-btn sr-btn--primary sr-note-save-btn" type="button" data-note-save="${m.candidate_id}">
@@ -1088,9 +1112,6 @@ function singleMatchRow(m: CandidateMatch, scraped: LookupRequest, allMatches: C
         <span class="sr-row-right">
           ${noteButton(m)}
           ${taskChipButton(m)}
-          <button class="sr-btn sr-btn--call" type="button" data-call="${m.candidate_id}" data-call-phone="${esc(m.phone_number)}" title="Call ${esc(m.name)}">
-            ${icon('phone', 'sr-icon-sm')} Call
-          </button>
           <a class="sr-btn ${crmBtnClass}" href="${esc(deepLink)}" target="_blank" rel="noopener" data-deeplink>
             ${icon('externalLink', 'sr-icon-sm')} ${crmBtnLabel}
           </a>
@@ -1277,35 +1298,6 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
     });
   });
 
-  // Call button
-  root.querySelectorAll<HTMLElement>('[data-call]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const candidateId = parseInt(btn.getAttribute('data-call') ?? '0', 10);
-      const phone = btn.getAttribute('data-call-phone') ?? '';
-      btn.className = 'sr-btn sr-btn--calling';
-      btn.innerHTML = `${icon('phone', 'sr-icon-sm')} Calling…`;
-
-      chrome.runtime.sendMessage(
-        { type: 'INITIATE_CALL', payload: { candidate_id: candidateId, phone } },
-        (response: { ok: boolean; error?: string } | undefined) => {
-          if (chrome.runtime.lastError || !response?.ok) {
-            const err = response?.error ?? chrome.runtime.lastError?.message ?? 'Unknown error';
-            const isNotAvailable = err.includes('404') || err.includes('not yet');
-            btn.className = 'sr-btn sr-btn--call-error';
-            btn.innerHTML = `${icon('phone', 'sr-icon-sm')} ${isNotAvailable ? 'Call service not yet available' : 'Call failed'}`;
-            setTimeout(() => {
-              btn.className = 'sr-btn sr-btn--call';
-              btn.innerHTML = `${icon('phone', 'sr-icon-sm')} Call`;
-            }, 3000);
-          } else {
-            btn.className = 'sr-btn sr-btn--call';
-            btn.innerHTML = `${icon('phone', 'sr-icon-sm')} Call`;
-          }
-        },
-      );
-    });
-  });
-
   // Note popover toggle — traverse up to .sr-note-anchor to find sibling popover
   root.querySelectorAll<HTMLElement>('[data-note-toggle]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
@@ -1347,6 +1339,9 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
 
       const candidateId = parseInt(btn.getAttribute('data-note-save') ?? '0', 10);
       const text = textarea.value.trim();
+      const typeSelect = compose?.querySelector('[data-note-type]') as HTMLSelectElement | null;
+      const noteTypeVal = typeSelect?.value;
+      const noteType = noteTypeVal ? parseInt(noteTypeVal, 10) : undefined;
 
       // Saving state
       btn.className = 'sr-btn sr-btn--adding sr-note-save-btn';
@@ -1354,7 +1349,7 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
       if (errorEl) errorEl.hidden = true;
 
       chrome.runtime.sendMessage(
-        { type: 'CREATE_NOTE', payload: { candidate_id: candidateId, text } },
+        { type: 'CREATE_NOTE', payload: { candidate_id: candidateId, text, type: noteType } },
         (response: { ok: boolean; error?: string } | undefined) => {
           if (chrome.runtime.lastError || !response?.ok) {
             const err = response?.error ?? chrome.runtime.lastError?.message ?? 'Failed to save';
@@ -1407,10 +1402,18 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
   // Close popovers on outside click
   root.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    if (!target.closest?.('[data-note-anchor]') && !target.closest?.('[data-note-toggle]')) {
+    if (!target.closest?.('.sr-note-anchor')) {
       root.querySelectorAll<HTMLElement>('[data-note-popover]').forEach((p) => { p.hidden = true; });
     }
-    if (!target.closest?.('[data-task-anchor]') && !target.closest?.('[data-task-toggle]')) {
+    if (!target.closest?.('.sr-task-anchor')) {
+      root.querySelectorAll<HTMLElement>('[data-task-popover]').forEach((p) => { p.hidden = true; });
+    }
+  });
+
+  // Close popovers on Escape
+  root.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Escape') {
+      root.querySelectorAll<HTMLElement>('[data-note-popover]').forEach((p) => { p.hidden = true; });
       root.querySelectorAll<HTMLElement>('[data-task-popover]').forEach((p) => { p.hidden = true; });
     }
   });

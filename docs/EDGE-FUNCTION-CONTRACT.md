@@ -186,7 +186,7 @@ Reuses the `ringover-match-phones` normalisation approach:
 
 ---
 
-# Edge Function Contract: `initiate-call`
+# Edge Function Contract: `initiate-call` *(unused — retained for future)*
 
 **Endpoint:** `POST /functions/v1/initiate-call`  
 **Auth:** Bearer `<recruiter JWT>` — same auth pattern as `candidate-match`.
@@ -356,12 +356,35 @@ Content-Type: application/json
 ```json
 {
   "candidate_id": 12345,
-  "text": "Spoke to candidate, available next week for C+E work."
+  "text": "Spoke to candidate, available next week for C+E work.",
+  "type": 4
 }
 ```
 
 - **candidate_id** — required. Must reference an existing candidate (404 if not found).
 - **text** — required, non-empty, max 2000 characters.
+- **type** — optional integer (`note_type_id` from the CRM's `note_types` table). When omitted, the note has no type (matches the CRM's default behaviour for manual notes). Allowed values:
+
+| `type` | Label |
+|--------|-------|
+| 4 | Recruiting Call |
+| 5 | BD Call |
+| 6 | Cold Call |
+| 7 | Prospect Call |
+| 13 | Candidate First Call - New Starter |
+| 17 | Candidate First Contact |
+| 20 | Email |
+| 21 | Other |
+| 23 | Telephone Registration |
+| 26 | First Day Call |
+| 71 | Candidate Spec |
+| 113 | Unsuccessful Call |
+| 329 | Spec Candidate |
+| 330 | CV Sent |
+| 336 | Key Call |
+| 375 | Registration call |
+
+The extension should render these as a dropdown (default label: "No type" / unset). Any value not in this list returns 400.
 
 ## Response — 201 Created
 
@@ -373,7 +396,7 @@ Content-Type: application/json
 
 | Status | Meaning |
 |--------|---------|
-| 400 | Missing or invalid `candidate_id`, empty `text`, or `text` exceeds 2000 chars |
+| 400 | Missing or invalid `candidate_id`, empty `text`, `text` exceeds 2000 chars, or invalid `type` |
 | 401 | Missing or invalid JWT |
 | 404 | Candidate not found |
 | 500 | Internal server error |

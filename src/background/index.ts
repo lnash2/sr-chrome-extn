@@ -159,52 +159,6 @@ async function handleCreateNote(payload: NoteCreateRequest): Promise<NoteCreateR
 }
 
 // ---------------------------------------------------------------------------
-// Call handler
-// ---------------------------------------------------------------------------
-
-async function handleInitiateCall(payload: { candidate_id: number; phone: string }): Promise<BackgroundResponse> {
-  if (USE_MOCK) {
-    return { ok: false, error: 'Call service not yet available (mock mode)' };
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    return { ok: false, error: 'NOT_AUTHENTICATED' };
-  }
-
-  const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/initiate-call`;
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.status === 404) {
-      return { ok: false, error: 'Call service not yet available (404)' };
-    }
-    if (res.status === 401) {
-      await supabase.auth.signOut();
-      return { ok: false, error: 'NOT_AUTHENTICATED' };
-    }
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      let message = `Call failed (${res.status})`;
-      try { const p = JSON.parse(body); if (p.error) message = p.error; } catch { /* use generic */ }
-      return { ok: false, error: message };
-    }
-
-    return { ok: true, data: { matches: [], metadata: { duration_ms: 0 } } };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : String(err) };
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Message listener
 // ---------------------------------------------------------------------------
 
@@ -224,8 +178,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         response = await handleLookup(message.payload);
       } else if (message?.type === 'CREATE_CANDIDATE') {
         response = await handleCreateCandidate(message.payload) as BackgroundResponse;
-      } else if (message?.type === 'INITIATE_CALL') {
-        response = await handleInitiateCall(message.payload);
       } else if (message?.type === 'CREATE_NOTE') {
         response = await handleCreateNote(message.payload) as BackgroundResponse;
       } else {
