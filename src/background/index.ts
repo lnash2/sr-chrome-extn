@@ -177,7 +177,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type === 'CANDIDATE_LOOKUP') {
         response = await handleLookup(message.payload);
       } else if (message?.type === 'CREATE_CANDIDATE') {
-        response = await handleCreateCandidate(message.payload) as BackgroundResponse;
+        const createResult = await handleCreateCandidate(message.payload);
+        // On 201, open the CRM completion form in a new tab
+        if (createResult.ok && createResult.candidate_id) {
+          chrome.tabs.create({
+            url: `https://portal.swift-recruit.co.uk/swift/candidates/${createResult.candidate_id}?complete=1`,
+            active: true,
+          });
+        }
+        response = createResult as BackgroundResponse;
       } else if (message?.type === 'CREATE_NOTE') {
         response = await handleCreateNote(message.payload) as BackgroundResponse;
       } else {
