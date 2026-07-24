@@ -7,49 +7,75 @@
 <body>
   <!--
     Fixture page mirroring empower.ringover.com call-detail layout.
+    Based on real DOM inspection of empower.ringover.com/logs/ringover/{id}.
     Used by Vitest scraper tests (headless, jsdom).
-    URL would be: https://empower.ringover.com/logs/12345
   -->
 
-  <div class="call-detail-page">
+  <!-- ===== DECOY: Log list / side rail (OUTSIDE the studio container) ===== -->
+  <!-- These numbers must NEVER be scraped — they belong to other calls -->
+  <div class="logList">
+    <div class="logEntry">
+      <span class="logPhone">01387 272143</span>
+      <span class="logDate">Jul 22, 14:05</span>
+    </div>
+    <div class="logEntry">
+      <span class="logPhone">07700 900555</span>
+      <span class="logDate">Jul 22, 13:48</span>
+    </div>
+  </div>
 
-    <!-- ===== Contact / Call header (LEFT — candidate phone lives here) ===== -->
-    <div class="call-header" data-testid="call-header">
-      <div class="contact-info">
-        <h2 class="contact-name">01353 648222</h2>
-        <div class="contact-number">
-          <a href="tel:+441353648222">
-            <svg class="phone-icon"></svg>
-            01353 648222
-          </a>
+  <!-- ===== STUDIO: Call detail container ===== -->
+  <div class="module_logs" data-tab="studio">
+    <div class="header">
+      <div class="titleContainer">
+        <div class="back ro-btn ro-variant-ghost ro-size-sm ro-color-scheme-product" id="closeModuleBtn">
         </div>
-        <span class="call-direction">Inbound call</span>
-        <span class="call-duration">4m 32s</span>
-        <span class="call-date">22 Jul 2026, 14:23</span>
       </div>
     </div>
 
-    <!-- ===== Call transcript / notes region ===== -->
-    <div class="call-content">
-      <div class="transcript-section">
-        <h3>Call Summary</h3>
-        <p>Candidate enquiring about HGV Class 2 positions in the Essex area. Currently holds C+E licence, available from next Monday.</p>
+    <div>
+      <div>
+        <div class="callIcon in"></div>
       </div>
+      <div>
+        <div class="view"></div>
+        <div class="edit" hidden></div>
+      </div>
+      <div></div>
+
+      <div class="headerInfo ro-text ro-size-xs">
+        <div class="date">4:21 p.m. – Jul 23, 2026</div>
+        <span class="separator"></span>
+        <div class="duration">3 min 35 sec</div>
+        <div class="durationSkeleton skeleton-loader" hidden></div>
+        <span class="separator2" hidden></span>
+      </div>
+
+      <div class="participantsInfo"></div>
+      <div class="participantsInfoSkeleton skeleton-loader" hidden></div>
+
+      <!-- Contact block — contains the candidate's phone -->
+      <div class="contactInfo" style="cursor: default;">
+        <div class="contactIntegrationIcon" hidden></div>
+        <div class="contactName">07941 816663</div>
+        <div class="contactInfoSkeleton skeleton-loader" hidden></div>
+      </div>
+
+      <span class="separator2" hidden></span>
+
+      <!-- Agent block — contains the recruiter's own details (MUST NOT be scraped) -->
+      <div class="agentInfo">
+        <div class="agentName">Morgan Parry-Jones</div>
+        <div class="agentPhone">07537 158191</div>
+        <div class="agentEmail">morgan@swift-recruit.co.uk</div>
+      </div>
+
+      <div class="agentInfoSkeleton skeleton-loader" hidden></div>
+      <div class="meetLink" hidden></div>
     </div>
 
-    <!-- ===== Agent block (RIGHT — recruiter's own details, must NOT be scraped) ===== -->
-    <div class="agent-section" data-testid="agent-info">
-      <h3>Agent</h3>
-      <div class="agent-details">
-        <span class="agent-name">Sarah Connor</span>
-        <span class="agent-email">sarah.connor@swift-recruit.co.uk</span>
-        <span class="agent-phone">
-          <a href="tel:+447911123456">07911 123456</a>
-        </span>
-        <span class="agent-extension">Ext. 201</span>
-      </div>
-    </div>
-
+    <div class="snippetTitleContainer"></div>
+    <div class="controls"></div>
   </div>
 </body>
 </html>

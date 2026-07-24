@@ -186,73 +186,30 @@ export const indeedProfile: SiteProfile = {
 // Empower (Ringover) profile — phone-only
 // ---------------------------------------------------------------------------
 
-/**
- * Extract phone from Empower call-detail page, EXCLUDING the agent block.
- * The agent block contains the recruiter's own number + @swift-recruit.co.uk email.
- * We exclude any element tree containing that email domain.
- */
-function empowerPhoneFromContactRegion(container: Element): string | null {
-  // Try tel: links first (outside agent region)
-  for (const a of container.querySelectorAll('a[href^="tel:"]')) {
-    if (isInAgentBlock(a)) continue;
-    const href = a.getAttribute('href') ?? '';
-    const phone = href.replace(/^tel:/i, '').trim();
-    if (phone) return phone;
-  }
+// Real Empower DOM (from empower.ringover.com/logs/ringover/{id}):
+//
+//   div.module_logs[data-tab="studio"]         ← call-detail container
+//     div.header
+//       ...
+//     div                                       ← body area
+//       div.contactInfo                         ← Contact block
+//         div.contactName  →  "07941 816663"    ← THE phone we want
+//       div.agentInfo                           ← Agent block (EXCLUDE)
+//         agent name, phone, @swift-recruit email
+//
+// The SPA also renders a log-list/side-rail with OTHER calls' numbers.
+// We must NEVER fall back to a page-wide regex — only extract from
+// inside the studio container's contactInfo.
 
-  // Regex scan: walk top-level sections, skip agent blocks
-  for (const section of container.children) {
-    if (isAgentSection(section)) continue;
-    const match = firstRegexMatch(section, UK_PHONE_RE);
-    if (match) return match;
-  }
-
-  // Fallback: page-wide regex but verify it's not in agent block
-  const allText = container.textContent ?? '';
-  const phoneMatch = allText.match(UK_PHONE_RE);
-  if (phoneMatch) {
-    // Check the match isn't solely from agent block
-    const agentBlocks = container.querySelectorAll('[class*="agent" i], [data-testid*="agent" i]');
-    for (const ab of agentBlocks) {
-      if ((ab.textContent ?? '').includes(phoneMatch[0])) {
-        // Phone is in agent block — check if it also appears elsewhere
-        const withoutAgent = allText.replace(ab.textContent ?? '', '');
-        const otherMatch = withoutAgent.match(UK_PHONE_RE);
-        if (otherMatch) return otherMatch[0].trim();
-        return null; // only in agent block
-      }
-    }
-    return phoneMatch[0].trim();
-  }
-
-  return null;
-}
-
-function isInAgentBlock(el: Element): boolean {
-  let parent: Element | null = el;
-  while (parent) {
-    if (isAgentSection(parent)) return true;
-    parent = parent.parentElement;
-  }
-  return false;
-}
-
-function isAgentSection(el: Element): boolean {
-  const cls = el.className?.toLowerCase?.() ?? '';
-  const testId = el.getAttribute?.('data-testid')?.toLowerCase() ?? '';
-  if (cls.includes('agent') || testId.includes('agent')) return true;
-  // Contains a swift-recruit email → agent block
-  const text = el.textContent ?? '';
-  if (text.includes('@swift-recruit.co.uk')) return true;
-  return false;
-}
+const EMPOWER_STUDIO_SELECTOR = '.module_logs[data-tab="studio"]';
 
 export const empowerProfile: SiteProfile = {
   id: 'empower',
 
   isOnPage: () => window.location.pathname.startsWith('/logs/'),
 
-  getContainer: () => document.body,
+  // Scope to the studio call-detail panel — never document.body
+  getContainer: () => document.querySelector(EMPOWER_STUDIO_SELECTOR),
 
   name: [], // no name scraping on Empower
 
@@ -260,9 +217,38 @@ export const empowerProfile: SiteProfile = {
 
   phone: [
     {
-      label: 'empower contact phone (excluding agent)',
-      extract: (c) => empowerPhoneFromContactRegion(c),
+      // Primary: div.contactName inside div.contactInfo (not inside agentInfo)
+      label: 'empower contactName element',
+      extract: (studio) => {
+        const contactInfo = studio.querySelector('.contactInfo');
+        if (!contactInfo) return null;
+        const contactName = contactInfo.querySelector('.contactName');
+        return contactName ? (contactName.textContent?.trim() || null) : null;
+      },
     },
+    {
+      // Fallback: tel: links inside contactInfo only
+      label: 'empower contactInfo tel: link',
+      extract: (studio) => {
+        const contactInfo = studio.querySelector('.contactInfo');
+        if (!contactInfo) return null;
+        const a = contactInfo.querySelector('a[href^="tel:"]');
+        if (!a) return null;
+        const href = a.getAttribute('href') ?? '';
+        return href.replace(/^tel:/i, '').trim() || null;
+      },
+    },
+    {
+      // Last resort: UK phone regex scoped to contactInfo ONLY — never page-wide
+      label: 'empower contactInfo phone regex',
+      extract: (studio) => {
+        const contactInfo = studio.querySelector('.contactInfo');
+        if (!contactInfo) return null;
+        return firstRegexMatch(contactInfo, UK_PHONE_RE);
+      },
+    },
+    // NO page-wide fallback — on Empower the SPA DOM contains dozens of
+    // other calls' numbers in the log list, so page-wide regex is harmful.
   ],
 
   location: [], // no location scraping on Empower

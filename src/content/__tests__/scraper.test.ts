@@ -150,20 +150,27 @@ describe('isOnCandidatePage — Empower', () => {
 describe('scrapeCandidate — Empower', () => {
   beforeEach(loadEmpowerFixture);
 
-  it('extracts contact phone from header', () => {
+  it('extracts contact phone from .contactName inside studio container', () => {
     const r = scrapeCandidate();
-    // May be tel: href format (+441353648222) or regex format (01353 648222)
-    // depending on jsdom href handling — both are valid, edge function normalises
-    expect(r.phone).toBeTruthy();
-    expect(r.phone!).toMatch(/1353/);
-    expect(r.phone!).toMatch(/648222/);
+    expect(r.phone).toBe('07941 816663');
   });
 
-  it('does NOT extract agent phone', () => {
+  it('does NOT extract agent phone (07537 158191)', () => {
     const r = scrapeCandidate();
-    // Agent phone is 07911 123456 — should not be extracted
-    expect(r.phone).not.toContain('07911');
-    expect(r.phone).not.toContain('7911');
+    expect(r.phone).not.toContain('07537');
+    expect(r.phone).not.toContain('158191');
+  });
+
+  it('does NOT extract decoy phone from log list (01387 272143)', () => {
+    const r = scrapeCandidate();
+    expect(r.phone).not.toContain('01387');
+    expect(r.phone).not.toContain('272143');
+  });
+
+  it('does NOT extract second decoy (07700 900555)', () => {
+    const r = scrapeCandidate();
+    expect(r.phone).not.toContain('07700');
+    expect(r.phone).not.toContain('900555');
   });
 
   it('returns null for name (phone-only site)', () => {
@@ -183,8 +190,14 @@ describe('scrapeCandidate — Empower', () => {
   });
 
   it('phone-only trigger fires', () => {
-    const r = scrapeCandidate();
-    expect(canTriggerLookup(r)).toBe(true);
+    expect(canTriggerLookup(scrapeCandidate())).toBe(true);
+  });
+
+  it('returns null phone when studio container missing (idle)', () => {
+    document.querySelector('.module_logs')?.remove();
+    // Re-detect — isOnCandidatePage still true (path /logs/) but container gone
+    isOnCandidatePage();
+    expect(scrapeCandidate().phone).toBeNull();
   });
 });
 
