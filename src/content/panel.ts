@@ -39,6 +39,7 @@ const ICONS = {
   clipboardList: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/>',
   calendarCheck: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/>',
   clock:         '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  mapPin:        '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
 } as const;
 
 function icon(name: keyof typeof ICONS, cls = ''): string {
@@ -752,6 +753,44 @@ const BAR_CSS = /* css */ `
   flex-shrink: 0;
 }
 .sr-last-contact .sr-icon { color: #94A3B8; }
+
+/* ===== Address in meta row ===== */
+.sr-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #475569;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.sr-address .sr-icon { color: #94A3B8; flex-shrink: 0; }
+.sr-copy-address {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94A3B8;
+  padding: 1px 3px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+.sr-copy-address:hover { color: #0891B2; }
+.sr-postcode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  flex-shrink: 0;
+}
 .sr-last-contact--stale {
   color: #92400E;
   background: #FFFBEB;
@@ -1077,8 +1116,20 @@ function lastContactElement(m: CandidateMatch): string {
   return `<span class="sr-last-contact${cls}" data-last-contact="${stale ? 'stale' : 'recent'}" title="${esc(m.last_contact_date.slice(0, 10))}">${icon('clock', 'sr-icon-xs')} Last contact ${relativeDate(m.last_contact_date)}</span>`;
 }
 
+function addressElement(m: CandidateMatch): string {
+  if (m.full_address) {
+    return `<span class="sr-address" title="${esc(m.full_address)}" data-address>${icon('mapPin', 'sr-icon-xs')} ${esc(m.full_address)}</span><button class="sr-copy-address" type="button" data-copy-address="${esc(m.full_address)}" title="Copy address">${icon('copy', 'sr-icon-xs')}</button>`;
+  }
+  if (m.postcode) {
+    return `<span class="sr-postcode-chip" data-address-postcode>${icon('mapPin', 'sr-icon-xs')} ${esc(m.postcode)}</span>`;
+  }
+  return '';
+}
+
 function metaRow(m: CandidateMatch): string {
   const parts: string[] = [];
+  const addr = addressElement(m);
+  if (addr) parts.push(addr);
   if (m.recruiter_name) parts.push(esc(m.recruiter_name));
   if (m.resourcer_name) parts.push(esc(m.resourcer_name));
   if (m.registered_at) parts.push(`Reg. <span title="${esc(m.registered_at.slice(0, 10))}">${relativeDate(m.registered_at)}</span>`);
@@ -1301,6 +1352,14 @@ function wireEvents(root: ShadowRoot, state: PanelState): void {
     btn.addEventListener('click', () => {
       const phone = btn.getAttribute('data-copy-phone');
       if (phone) navigator.clipboard.writeText(phone);
+    });
+  });
+
+  // Copy address
+  root.querySelectorAll<HTMLElement>('[data-copy-address]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const addr = btn.getAttribute('data-copy-address');
+      if (addr) navigator.clipboard.writeText(addr);
     });
   });
 

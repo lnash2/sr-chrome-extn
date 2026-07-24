@@ -84,6 +84,53 @@ describe('Bar — .co.uk', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Address in Row 3
+// ---------------------------------------------------------------------------
+
+describe('Bar — address', () => {
+  afterEach(() => destroyPanel());
+
+  it('renders full address with pin icon and title (hover)', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const addr = shadow().querySelector('[data-address]') as HTMLElement;
+    expect(addr).not.toBeNull();
+    expect(addr.textContent).toContain('14 Mill Lane');
+    expect(addr.getAttribute('title')).toBe('14 Mill Lane, Saffron Walden, Essex, CB10 1SA');
+  });
+
+  it('renders copy-address button with full address', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const btn = shadow().querySelector('[data-copy-address]') as HTMLElement;
+    expect(btn).not.toBeNull();
+    expect(btn.getAttribute('data-copy-address')).toBe('14 Mill Lane, Saffron Walden, Essex, CB10 1SA');
+  });
+
+  it('falls back to postcode when full_address absent', () => {
+    const m: CandidateMatch = { ...fixtureMatch('single_email') };
+    renderPanel(matchState([m], { phone: null, email: 'x@y.com', name: null, location: null }));
+    expect(shadow().querySelector('[data-address]')).toBeNull();
+    const pc = shadow().querySelector('[data-address-postcode]');
+    expect(pc).not.toBeNull();
+    expect(pc!.textContent).toContain('LS2 7HY');
+  });
+
+  it('renders nothing when neither address nor postcode', () => {
+    renderPanel(matchState([fixtureMatch('sparse')]));
+    expect(shadow().querySelector('[data-address]')).toBeNull();
+    expect(shadow().querySelector('[data-address-postcode]')).toBeNull();
+  });
+
+  it('address is first item in meta row', () => {
+    renderPanel(matchState([fixtureMatch('single_phone')]));
+    const row3 = shadow().querySelector('.sr-row-3')!;
+    const firstText = row3.textContent!;
+    const addrIdx = firstText.indexOf('Mill Lane');
+    const recruiterIdx = firstText.indexOf('Sarah Connor');
+    expect(addrIdx).toBeLessThan(recruiterIdx);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Notes panel — CRM-style feed
 // ---------------------------------------------------------------------------
 

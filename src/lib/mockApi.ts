@@ -69,6 +69,7 @@ const FIXTURES: Record<string, MatchResponse> = {
         ],
         phone_number: '+447712345678',
         postcode: 'CB10 1SA',
+        full_address: '14 Mill Lane, Saffron Walden, Essex, CB10 1SA',
       },
     ],
     metadata: { duration_ms: 38 },

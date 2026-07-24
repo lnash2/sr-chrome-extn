@@ -70,6 +70,7 @@ export interface CandidateMatch {
 
   phone_number: string;
   postcode: string | null;
+  full_address?: string | null;
 }
 
 export interface MatchResponse {
